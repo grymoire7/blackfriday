@@ -1,6 +1,6 @@
 //
-// Blackfriday Markdown Processor
-// Available at http://github.com/russross/blackfriday
+// Blackfriday Markdown Processor (forked)
+// Available at http://github.com/grymoire7/blackfriday
 //
 // Copyright © 2014
 // Distributed under the Simplified BSD License.
@@ -53,22 +53,23 @@ func (options *Terminal) Header(out *bytes.Buffer, text func() bool, level int) 
 
 	switch level {
 	case 1:
-		out.WriteString("\n# ")
+        out.WriteString("\n\033[31m\033[1m") // #
 	case 2:
-		out.WriteString("\n## ")
+        out.WriteString("\n\033[33m\033[1m") // ##
 	case 3:
-		out.WriteString("\n### ")
+        out.WriteString("\n\033[32m\033[1m") // ###
 	case 4:
-		out.WriteString("\n#### ")
+        out.WriteString("\n\033[34m\033[1m") // ####
 	case 5:
-		out.WriteString("\n##### ")
+        out.WriteString("\n\033[35m\033[1m") // #####
 	case 6:
-		out.WriteString("\n###### ")
+        out.WriteString("\n\033[36m\033[1m") // ######
 	}
 	if !text() {
 		out.Truncate(marker)
 		return
 	}
+	out.WriteString("\033[0m\n")
 }
 
 func (options *Terminal) HRule(out *bytes.Buffer) {
@@ -78,22 +79,18 @@ func (options *Terminal) HRule(out *bytes.Buffer) {
 func (options *Terminal) List(out *bytes.Buffer, text func() bool, flags int) {
 	marker := out.Len()
 	if flags&LIST_TYPE_ORDERED != 0 {
-		// out.WriteString("\n<enumerate>\n")
-		out.WriteString("\n")
+		out.WriteString("\n + ")
 	} else {
-		// out.WriteString("\n<itemize>\n")
-		out.WriteString("\n")
+		out.WriteString("\n  * ")
 	}
 	if !text() {
 		out.Truncate(marker)
 		return
 	}
 	if flags&LIST_TYPE_ORDERED != 0 {
-		// out.WriteString("\n</enumerate>\n")
-		out.WriteString("\n")
+		out.WriteString("\n + ")
 	} else {
-		// out.WriteString("\n</itemize>\n")
-		out.WriteString("\n")
+		out.WriteString("\n * ")
 	}
 }
 
@@ -133,7 +130,7 @@ func (options *Terminal) Table(out *bytes.Buffer, header []byte, body []byte, co
 
 func (options *Terminal) TableRow(out *bytes.Buffer, text []byte) {
 	if out.Len() > 0 {
-		out.WriteString(" \\\\\n")
+		out.WriteString("|\n")
 	}
 	out.Write(text)
 }
@@ -173,21 +170,21 @@ func (options *Terminal) AutoLink(out *bytes.Buffer, link []byte, kind int) {
 }
 
 func (options *Terminal) CodeSpan(out *bytes.Buffer, text []byte) {
-	out.WriteString("**")
+	out.WriteString("\n")
 	escapeSpecialChars(out, text)
-	out.WriteString("**")
+	out.WriteString("\n")
 }
 
 // bold
 func (options *Terminal) DoubleEmphasis(out *bytes.Buffer, text []byte) {
-	out.WriteString("**")
+	out.WriteString("\033[1m")
 	out.Write(text)
-	out.WriteString("**")
+	out.WriteString("\033[0m")
 }
 
-// italic
+// italic -> underline
 func (options *Terminal) Emphasis(out *bytes.Buffer, text []byte) {
-	out.WriteString("\033[1m")
+	out.WriteString("\033[0;4m")
 	out.Write(text)
 	out.WriteString("\033[0m")
 }
@@ -223,9 +220,9 @@ func (options *Terminal) RawHtmlTag(out *bytes.Buffer, tag []byte) {
 }
 
 func (options *Terminal) TripleEmphasis(out *bytes.Buffer, text []byte) {
-	out.WriteString("***")
+	out.WriteString("\033[7m")
 	out.Write(text)
-	out.WriteString("***")
+	out.WriteString("\033[0m")
 }
 
 func (options *Terminal) StrikeThrough(out *bytes.Buffer, text []byte) {
@@ -250,12 +247,13 @@ func (options *Terminal) NormalText(out *bytes.Buffer, text []byte) {
 
 // header and footer
 func (options *Terminal) DocumentHeader(out *bytes.Buffer) {
-	out.WriteString("GMAN(1) Version ")
-	out.WriteString(VERSION)
-	out.WriteString("\n")
+	// out.WriteString("GMAN(1) Version ")
+	// out.WriteString(VERSION)
+	// out.WriteString("\n")
 }
 
 func (options *Terminal) DocumentFooter(out *bytes.Buffer) {
-	out.WriteString("\nThe End.\n")
+	out.WriteString("\nGMAN(1) Version ")
+	out.WriteString(VERSION)
 }
 
