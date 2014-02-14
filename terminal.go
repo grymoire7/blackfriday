@@ -78,24 +78,26 @@ func (options *Terminal) HRule(out *bytes.Buffer) {
 
 func (options *Terminal) List(out *bytes.Buffer, text func() bool, flags int) {
 	marker := out.Len()
+    /*
 	if flags&LIST_TYPE_ORDERED != 0 {
-		out.WriteString("\n + ")
+		out.WriteString("\n a ")
 	} else {
-		out.WriteString("\n  * ")
+		out.WriteString("\n  b ")
 	}
+    */
 	if !text() {
 		out.Truncate(marker)
 		return
 	}
 	if flags&LIST_TYPE_ORDERED != 0 {
-		out.WriteString("\n + ")
+		out.WriteString("\n")
 	} else {
-		out.WriteString("\n * ")
+		out.WriteString("\n")
 	}
 }
 
 func (options *Terminal) ListItem(out *bytes.Buffer, text []byte, flags int) {
-	out.WriteString("\n- ")
+	out.WriteString("\n\u2022 ")
 	out.Write(text)
 }
 
@@ -109,7 +111,10 @@ func (options *Terminal) Paragraph(out *bytes.Buffer, text func() bool) {
 	out.WriteString("\n")
 }
 
+// It might be better to turn this extension off and present as text unless
+// we can reliably use ansi box drawing characters.
 func (options *Terminal) Table(out *bytes.Buffer, header []byte, body []byte, columnData []int) {
+    /*
 	out.WriteString("\n\\begin{tabular}{")
 	for _, elt := range columnData {
 		switch elt {
@@ -121,11 +126,9 @@ func (options *Terminal) Table(out *bytes.Buffer, header []byte, body []byte, co
 			out.WriteByte('c')
 		}
 	}
-	out.WriteString("}\n")
+    */
 	out.Write(header)
-	out.WriteString(" \\\\\n\\hline\n")
 	out.Write(body)
-	out.WriteString("\n\\end{tabular}\n")
 }
 
 func (options *Terminal) TableRow(out *bytes.Buffer, text []byte) {
