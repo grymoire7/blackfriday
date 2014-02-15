@@ -20,6 +20,7 @@ import (
     "log"
     "syscall"
     "unsafe"
+    "strings"
 )
 
 const (
@@ -140,7 +141,8 @@ func (t *Terminal) Header(out *bytes.Buffer, text func() bool, level int) {
 }
 
 func (t *Terminal) HRule(out *bytes.Buffer) {
-    out.WriteString("\n--------------------------------\n")
+    hr := strings.Repeat("\u2500", t.termWidth)
+    out.WriteString("\n" + hr)
 }
 
 func (t *Terminal) List(out *bytes.Buffer, text func() bool, flags int) {
