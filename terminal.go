@@ -18,13 +18,24 @@ package blackfriday
 import (
     "bytes"
     "log"
-    "syscall"
-    "unsafe"
+    "regexp"
     "strings"
+    "syscall"
+    "unicode"
+    "unicode/utf8"
+    "unsafe"
 )
 
 const (
     keyEscape = 27
+)
+
+const (
+    CHARSTYLE_BOLD       = 1 << iota
+    CHARSTYLE_UNDERLINE
+    CHARSTYLE_INVERSE
+    CHARSTYLE_FGCOLOR
+    CHARSTYLE_BGCOLOR
 )
 
 // EscapeCodes contains escape sequences that can be written to the terminal in
@@ -61,9 +72,13 @@ var vt100EscapeCodes = EscapeCodes{
 //
 // Do not create this directly, instead use the TerminalRenderer function.
 type Terminal struct {
-    escape    *EscapeCodes
-    termWidth int
+    escape     *EscapeCodes
+    termWidth  int
+    xpos       int
+    charstyle  int
+    whitespace *regexp.Regexp;
 }
+
 
 // TerminalRenderer creates and configures a Terminal object, which
 // satisfies the Renderer interface.
@@ -78,8 +93,11 @@ func TerminalRenderer(flags int) Renderer {
     log.Println("width: ", width)
 
     return &Terminal{
-        escape:    &vt100EscapeCodes,
-        termWidth: width,
+        escape:     &vt100EscapeCodes,
+        termWidth:  width,
+        xpos:       0,
+        charstyle:  0,
+        whitespace: regexp.MustCompile(`\s+`),
     }
 }
 
@@ -87,10 +105,72 @@ func TerminalRenderer(flags int) Renderer {
 func getTerminalSize(fd int) (width, height int, err error) {
     var dimensions [4]uint16
 
-    if _, _, err := syscall.Syscall6(syscall.SYS_IOCTL, uintptr(fd), uintptr(syscall.TIOCGWINSZ), uintptr(unsafe.Pointer(&dimensions)), 0, 0, 0); err != 0 {
+    _, _, err = syscall.Syscall6(
+        syscall.SYS_IOCTL,
+        uintptr(fd),
+        uintptr(syscall.TIOCGWINSZ),
+        uintptr(unsafe.Pointer(&dimensions)),
+        0, 0, 0)
+
+    if err != nil {
         return -1, -1, err
     }
-    return int(dimensions[1]), int(dimensions[0]), nil
+    return int(dimensions[1]), int(dimensions[0]), err
+}
+
+func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte) error {
+    // Normalize whitespace
+    s := t.whitespace.ReplaceAll(text, []byte(" "))
+    r := bytes.Runes(s)
+    rpos := 0
+
+    for rpos < len(r) {
+        remaining := t.termWidth - t.xpos
+        toolong := true
+
+        // If we're at the beginning of a terminal line (t.xpos == 0)
+        // then advance rpos past any whitespace.
+        if t.xpos == 0 {
+            for unicode.IsSpace(r[rpos]) {
+                rpos++
+            }
+        }
+
+        // if we don't need to wrap, then don't
+        if len(r[rpos:]) < remaining {
+            out.WriteString(string(r[rpos:]))
+            t.xpos += len(r[rpos:])
+            break;
+        }
+
+        for i := remaining; i > 0; i-- {
+            if unicode.IsSpace(r[rpos + i]) {
+                out.WriteString(string(r[rpos:rpos + i]))
+                rpos += i + 1
+                toolong = false
+                break;
+            }
+        }
+
+        // If we a run of text with no whitespace longer than the 
+        // remaining space availble and we're the start of a terminal
+        // line (xpos == 0) then truncate the line.
+        if toolong && t.xpos == 0 {
+            out.WriteString(string(r[rpos:rpos + t.termWidth]))
+            rpos += t.termWidth
+        }
+
+        if rpos < len(r) {
+            t.endLine(out)
+        }
+    }
+
+    return nil
+}
+
+func (t *Terminal) endLine(out *bytes.Buffer) {
+    t.xpos = 0
+    out.WriteString("\n")
 }
 
 // render code chunks using verbatim, or listings if we have a language
@@ -108,7 +188,7 @@ func (t *Terminal) BlockHtml(out *bytes.Buffer, text []byte) {
 
 func (t *Terminal) Header(out *bytes.Buffer, text func() bool, level int) {
     marker := out.Len()
-    out.WriteString("\n")
+    t.endLine(out) // TODO: should not need this
 
     switch level {
     case 1: // #
@@ -137,12 +217,13 @@ func (t *Terminal) Header(out *bytes.Buffer, text func() bool, level int) {
     }
 
     out.Write(t.escape.Reset)
-    out.WriteString("\n")
+    t.endLine(out)
 }
 
 func (t *Terminal) HRule(out *bytes.Buffer) {
     hr := strings.Repeat("\u2500", t.termWidth)
-    out.WriteString("\n" + hr)
+    out.WriteString(hr)
+    t.endLine(out)
 }
 
 func (t *Terminal) List(out *bytes.Buffer, text func() bool, flags int) {
@@ -159,69 +240,43 @@ func (t *Terminal) List(out *bytes.Buffer, text func() bool, flags int) {
         return
     }
     if flags&LIST_TYPE_ORDERED != 0 {
-        out.WriteString("\n")
+        t.endLine(out)
     } else {
-        out.WriteString("\n")
+        t.endLine(out)
     }
 }
 
 func (t *Terminal) ListItem(out *bytes.Buffer, text []byte, flags int) {
-    out.WriteString("\n\u2022 ")
+    t.endLine(out)
+    t.xpos = utf8.RuneCount(text) + 2
+    out.WriteString("\u2022 ")
     out.Write(text)
 }
 
 func (t *Terminal) Paragraph(out *bytes.Buffer, text func() bool) {
     marker := out.Len()
-    out.WriteString("\n")
+    t.endLine(out)
     if !text() {
         out.Truncate(marker)
         return
     }
-    out.WriteString("\n")
+    t.endLine(out)
 }
 
 // It might be better to turn this extension off and present as text unless
 // we can reliably use ansi box drawing characters.
 func (t *Terminal) Table(out *bytes.Buffer, header []byte, body []byte, columnData []int) {
-    /*
-    	out.WriteString("\n\\begin{tabular}{")
-    	for _, elt := range columnData {
-    		switch elt {
-    		case TABLE_ALIGNMENT_LEFT:
-    			out.WriteByte('l')
-    		case TABLE_ALIGNMENT_RIGHT:
-    			out.WriteByte('r')
-    		default:
-    			out.WriteByte('c')
-    		}
-    	}
-    */
-    out.Write(header)
-    out.Write(body)
 }
 
 func (t *Terminal) TableRow(out *bytes.Buffer, text []byte) {
-    if out.Len() > 0 {
-        out.WriteString("|\n")
-    }
-    out.Write(text)
 }
 
 func (t *Terminal) TableHeaderCell(out *bytes.Buffer, text []byte, align int) {
-    if out.Len() > 0 {
-        out.WriteString(" & ")
-    }
-    out.Write(text)
 }
 
 func (t *Terminal) TableCell(out *bytes.Buffer, text []byte, align int) {
-    if out.Len() > 0 {
-        out.WriteString(" & ")
-    }
-    out.Write(text)
 }
 
-// TODO: this
 func (t *Terminal) Footnotes(out *bytes.Buffer, text func() bool) {
 
 }
@@ -242,23 +297,24 @@ func (t *Terminal) AutoLink(out *bytes.Buffer, link []byte, kind int) {
 }
 
 func (t *Terminal) CodeSpan(out *bytes.Buffer, text []byte) {
-    out.WriteString("\n")
+    t.endLine(out)
     escapeSpecialChars(out, text)
-    out.WriteString("\n")
+    t.endLine(out)
 }
 
 // bold
 func (t *Terminal) DoubleEmphasis(out *bytes.Buffer, text []byte) {
-    out.WriteString("\033[1m")
+    out.Write(t.escape.Bold)
     out.Write(text)
-    out.WriteString("\033[0m")
+    out.Write(t.escape.Reset)
 }
 
 // italic -> underline
 func (t *Terminal) Emphasis(out *bytes.Buffer, text []byte) {
+    // out.Write(t.escape.Underline)
     out.WriteString("\033[0;4m")
     out.Write(text)
-    out.WriteString("\033[0m")
+    out.Write(t.escape.Reset)
 }
 
 func (t *Terminal) Image(out *bytes.Buffer, link []byte, title []byte, alt []byte) {
@@ -277,7 +333,7 @@ func (t *Terminal) Image(out *bytes.Buffer, link []byte, title []byte, alt []byt
 }
 
 func (t *Terminal) LineBreak(out *bytes.Buffer) {
-    out.WriteString("\n")
+    out.WriteString("qqqqqq\n")
 }
 
 func (t *Terminal) Link(out *bytes.Buffer, link []byte, title []byte, content []byte) {
@@ -309,12 +365,12 @@ func (t *Terminal) FootnoteRef(out *bytes.Buffer, ref []byte, id int) {
 }
 
 func (t *Terminal) Entity(out *bytes.Buffer, entity []byte) {
-    // TODO: convert this into a unicode character or something
+    // TODO: convert this into a unicode character?
     out.Write(entity)
 }
 
 func (t *Terminal) NormalText(out *bytes.Buffer, text []byte) {
-    out.Write(text)
+    t.wrapTextOut(out, text)
 }
 
 // header and footer
