@@ -24,6 +24,7 @@ import (
     "unicode"
     "unicode/utf8"
     "unsafe"
+    "fmt"
 )
 
 const (
@@ -76,6 +77,7 @@ type Terminal struct {
     termWidth  int
     xpos       int
     charstyle  int
+    listCount  int
     whitespace *regexp.Regexp;
 }
 
@@ -97,6 +99,7 @@ func TerminalRenderer(flags int) Renderer {
         termWidth:  width,
         xpos:       0,
         charstyle:  0,
+        listCount:  0,
         whitespace: regexp.MustCompile(`\s+`),
     }
 }
@@ -228,18 +231,15 @@ func (t *Terminal) HRule(out *bytes.Buffer) {
 
 func (t *Terminal) List(out *bytes.Buffer, text func() bool, flags int) {
     marker := out.Len()
-    /*
-    	if flags&LIST_TYPE_ORDERED != 0 {
-    		out.WriteString("\n a ")
-    	} else {
-    		out.WriteString("\n  b ")
-    	}
-    */
+    if flags & LIST_TYPE_ORDERED != 0 {
+        t.listCount = 0
+    }
+
     if !text() {
         out.Truncate(marker)
         return
     }
-    if flags&LIST_TYPE_ORDERED != 0 {
+    if flags & LIST_TYPE_ORDERED != 0 {
         t.endLine(out)
     } else {
         t.endLine(out)
@@ -248,8 +248,15 @@ func (t *Terminal) List(out *bytes.Buffer, text func() bool, flags int) {
 
 func (t *Terminal) ListItem(out *bytes.Buffer, text []byte, flags int) {
     t.endLine(out)
-    t.xpos = utf8.RuneCount(text) + 2
-    out.WriteString("\u2022 ")
+    var prefix string
+    if flags & LIST_TYPE_ORDERED != 0 {
+        t.listCount++
+        prefix = fmt.Sprintf("%d. ", t.listCount)
+    } else {
+        prefix = "\u2022 "
+    }
+    t.xpos = utf8.RuneCount(text) + len(prefix)
+    out.WriteString(prefix)
     out.Write(text)
 }
 
