@@ -17,6 +17,7 @@ package blackfriday
 
 import (
     "bytes"
+    "fmt"
     "log"
     "regexp"
     "strings"
@@ -24,7 +25,6 @@ import (
     "unicode"
     "unicode/utf8"
     "unsafe"
-    "fmt"
 )
 
 const (
@@ -32,12 +32,23 @@ const (
 )
 
 const (
-    CHARSTYLE_BOLD       = 1 << iota
-    CHARSTYLE_UNDERLINE
-    CHARSTYLE_INVERSE
-    CHARSTYLE_FGCOLOR
-    CHARSTYLE_BGCOLOR
+    COLOR_BLACK = 1 << iota
+    COLOR_RED
+    COLOR_GREEN
+    COLOR_YELLOW
+    COLOR_BLUE
+    COLOR_MAGENTA
+    COLOR_CYAN
+    COLOR_WHITE
 )
+
+type CharStyle struct {
+    Bold  bool
+    Underline bool
+    Inverse bool
+    FGColor int
+    BGColor int
+}
 
 // EscapeCodes contains escape sequences that can be written to the terminal in
 // order to achieve different styles of text.
@@ -76,11 +87,10 @@ type Terminal struct {
     escape     *EscapeCodes
     termWidth  int
     xpos       int
-    charstyle  int
+    charstyle  CharStyle
     listCount  int
-    whitespace *regexp.Regexp;
+    whitespace *regexp.Regexp
 }
-
 
 // TerminalRenderer creates and configures a Terminal object, which
 // satisfies the Renderer interface.
@@ -98,7 +108,7 @@ func TerminalRenderer(flags int) Renderer {
         escape:     &vt100EscapeCodes,
         termWidth:  width,
         xpos:       0,
-        charstyle:  0,
+        charstyle:  CharStyle{ false, false, false, 0, 0 },
         listCount:  0,
         whitespace: regexp.MustCompile(`\s+`),
     }
@@ -143,23 +153,23 @@ func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte) error {
         if len(r[rpos:]) < remaining {
             out.WriteString(string(r[rpos:]))
             t.xpos += len(r[rpos:])
-            break;
+            break
         }
 
         for i := remaining; i > 0; i-- {
-            if unicode.IsSpace(r[rpos + i]) {
-                out.WriteString(string(r[rpos:rpos + i]))
+            if unicode.IsSpace(r[rpos+i]) {
+                out.WriteString(string(r[rpos : rpos+i]))
                 rpos += i + 1
                 toolong = false
-                break;
+                break
             }
         }
 
-        // If we a run of text with no whitespace longer than the 
+        // If we a run of text with no whitespace longer than the
         // remaining space availble and we're the start of a terminal
         // line (xpos == 0) then truncate the line.
         if toolong && t.xpos == 0 {
-            out.WriteString(string(r[rpos:rpos + t.termWidth]))
+            out.WriteString(string(r[rpos : rpos+t.termWidth]))
             rpos += t.termWidth
         }
 
@@ -193,32 +203,38 @@ func (t *Terminal) Header(out *bytes.Buffer, text func() bool, level int) {
     marker := out.Len()
     t.endLine(out) // TODO: should not need this
 
+
     switch level {
     case 1: // #
+        t.charstyle.FGColor = COLOR_RED
         out.Write(t.escape.Red)
-        out.Write(t.escape.Bold)
     case 2: // ##
+        t.charstyle.FGColor = COLOR_YELLOW
         out.Write(t.escape.Yellow)
-        out.Write(t.escape.Bold)
     case 3: // ###
+        t.charstyle.FGColor = COLOR_GREEN
         out.Write(t.escape.Green)
-        out.Write(t.escape.Bold)
     case 4: // ####
+        t.charstyle.FGColor = COLOR_BLUE
         out.Write(t.escape.Blue)
-        out.Write(t.escape.Bold)
     case 5: // #####
+        t.charstyle.FGColor = COLOR_MAGENTA
         out.Write(t.escape.Magenta)
-        out.Write(t.escape.Bold)
     case 6: // ######
+        t.charstyle.FGColor = COLOR_CYAN
         out.Write(t.escape.Cyan)
-        out.Write(t.escape.Bold)
     }
+
+    t.charstyle.Bold = true
+    out.Write(t.escape.Bold)
 
     if !text() {
         out.Truncate(marker)
         return
     }
 
+    t.charstyle.Bold = false
+    t.charstyle.FGColor = COLOR_WHITE
     out.Write(t.escape.Reset)
     t.endLine(out)
 }
@@ -231,7 +247,7 @@ func (t *Terminal) HRule(out *bytes.Buffer) {
 
 func (t *Terminal) List(out *bytes.Buffer, text func() bool, flags int) {
     marker := out.Len()
-    if flags & LIST_TYPE_ORDERED != 0 {
+    if flags&LIST_TYPE_ORDERED != 0 {
         t.listCount = 0
     }
 
@@ -239,7 +255,7 @@ func (t *Terminal) List(out *bytes.Buffer, text func() bool, flags int) {
         out.Truncate(marker)
         return
     }
-    if flags & LIST_TYPE_ORDERED != 0 {
+    if flags&LIST_TYPE_ORDERED != 0 {
         t.endLine(out)
     } else {
         t.endLine(out)
@@ -249,7 +265,7 @@ func (t *Terminal) List(out *bytes.Buffer, text func() bool, flags int) {
 func (t *Terminal) ListItem(out *bytes.Buffer, text []byte, flags int) {
     t.endLine(out)
     var prefix string
-    if flags & LIST_TYPE_ORDERED != 0 {
+    if flags&LIST_TYPE_ORDERED != 0 {
         t.listCount++
         prefix = fmt.Sprintf("%d. ", t.listCount)
     } else {
@@ -318,8 +334,7 @@ func (t *Terminal) DoubleEmphasis(out *bytes.Buffer, text []byte) {
 
 // italic -> underline
 func (t *Terminal) Emphasis(out *bytes.Buffer, text []byte) {
-    // out.Write(t.escape.Underline)
-    out.WriteString("\033[0;4m")
+    out.Write(t.escape.Underline)
     out.Write(text)
     out.Write(t.escape.Reset)
 }
