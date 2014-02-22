@@ -238,14 +238,17 @@ func (t *Terminal) runesCellLen(ra []rune) int {
     return cells
 }
 
-func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte) error {
+// Wraps text with given line prefix and writes to out buffer.
+func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte, prefix string) error {
     // Normalize whitespace
     s := t.whitespace.ReplaceAll(text, []byte(" "))
     r := bytes.Runes(s)
     rpos := 0
+    prefixLen := len(prefix)
+    out.WriteString(prefix)
 
     for rpos < len(r) {
-        remainigCells := t.termWidth - t.xpos
+        remainigCells := t.termWidth - t.xpos - prefixLen
         toolong := true
 
         // If we're at the beginning of a terminal line (t.xpos == 0)
@@ -281,12 +284,13 @@ func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte) error {
         // TODO: this does not yet account for runes that require
         // more than one terminal cell
         if toolong && t.xpos == 0 {
-            out.WriteString(string(r[rpos : rpos+t.termWidth]))
-            rpos += t.termWidth
+            out.WriteString(string(r[rpos : rpos+t.termWidth-prefixLen]))
+            rpos += t.termWidth - prefixLen
         }
 
         if rpos < len(r) {
             t.endLine(out)
+            out.WriteString(prefix)
         }
     }
 
@@ -470,11 +474,10 @@ func (t *Terminal) LineBreak(out *bytes.Buffer) {
 }
 
 func (t *Terminal) Link(out *bytes.Buffer, link []byte, title []byte, content []byte) {
-    out.WriteString("[")
-    out.Write(link)
-    out.WriteString("][")
-    out.Write(content)
-    out.WriteString("]")
+    t.Emphasis(out, link)
+    t.NormalText(out, []byte("["))
+    t.NormalText(out, content)
+    t.NormalText(out, []byte("]"))
 }
 
 func (t *Terminal) RawHtmlTag(out *bytes.Buffer, tag []byte) {
@@ -483,7 +486,7 @@ func (t *Terminal) RawHtmlTag(out *bytes.Buffer, tag []byte) {
 func (t *Terminal) TripleEmphasis(out *bytes.Buffer, text []byte) {
     t.pushStyle()
     out.Write(t.escape.Inverse)
-    out.Write(text)
+    t.NormalText(out, text)
     t.popStyle(out)
 }
 
@@ -503,7 +506,7 @@ func (t *Terminal) Entity(out *bytes.Buffer, entity []byte) {
 }
 
 func (t *Terminal) NormalText(out *bytes.Buffer, text []byte) {
-    t.wrapTextOut(out, text)
+    t.wrapTextOut(out, text, "")
 }
 
 // header and footer
