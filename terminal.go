@@ -50,6 +50,14 @@ type CharStyle struct {
     BGColor int
 }
 
+var defaultCharStyle = CharStyle{
+    Bold: false,
+    Underline: false,
+    Inverse: false,
+    FGColor: 0,
+    BGColor: 0,
+}
+
 // EscapeCodes contains escape sequences that can be written to the terminal in
 // order to achieve different styles of text.
 type EscapeCodes struct {
@@ -88,6 +96,7 @@ type Terminal struct {
     termWidth  int
     xpos       int
     charstyle  CharStyle
+    styleStack []CharStyle
     listCount  int
     whitespace *regexp.Regexp
 }
@@ -108,7 +117,7 @@ func TerminalRenderer(flags int) Renderer {
         escape:     &vt100EscapeCodes,
         termWidth:  width,
         xpos:       0,
-        charstyle:  CharStyle{ false, false, false, 0, 0 },
+        charstyle:  defaultCharStyle,
         listCount:  0,
         whitespace: regexp.MustCompile(`\s+`),
     }
@@ -130,6 +139,59 @@ func getTerminalSize(fd int) (width, height int, err error) {
     }
     return int(dimensions[1]), int(dimensions[0]), err
 }
+
+func (t *Terminal) pushStyle() {
+    t.styleStack = append(t.styleStack, t.charstyle)
+}
+
+func (t *Terminal) popStyle(out *bytes.Buffer) CharStyle {
+    if len(t.styleStack) > 0 {
+        t.charstyle, t.styleStack = t.styleStack[len(t.styleStack)-1], t.styleStack[:len(t.styleStack)-1]
+    } else {
+        t.charstyle = defaultCharStyle
+    }
+
+    // Restore styles to terminal
+    out.Write(t.escape.Reset)
+    t.setFGColor(out, t.charstyle.FGColor)
+    if (t.charstyle.Bold) {
+        out.Write(t.escape.Bold)
+    }
+    if (t.charstyle.Underline) {
+        out.Write(t.escape.Underline)
+    }
+    if (t.charstyle.Inverse) {
+        out.Write(t.escape.Inverse)
+    }
+
+    return t.charstyle
+}
+
+func (t *Terminal) setFGColor(out *bytes.Buffer, c int) {
+
+    t.charstyle.FGColor = c
+
+    switch c {
+    case COLOR_BLACK:
+        out.Write(t.escape.Black)
+    case COLOR_RED:
+        out.Write(t.escape.Red)
+    case COLOR_GREEN:
+        out.Write(t.escape.Green)
+    case COLOR_YELLOW:
+        out.Write(t.escape.Yellow)
+    case COLOR_BLUE:
+        out.Write(t.escape.Blue)
+    case COLOR_MAGENTA:
+        out.Write(t.escape.Magenta)
+    case COLOR_CYAN:
+        out.Write(t.escape.Cyan)
+    case COLOR_WHITE:
+        out.Write(t.escape.White)
+    }
+
+}
+
 
 func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte) error {
     // Normalize whitespace
@@ -203,26 +265,21 @@ func (t *Terminal) Header(out *bytes.Buffer, text func() bool, level int) {
     marker := out.Len()
     t.endLine(out) // TODO: should not need this
 
+    t.pushStyle()
 
     switch level {
     case 1: // #
-        t.charstyle.FGColor = COLOR_RED
-        out.Write(t.escape.Red)
+        t.setFGColor(out, COLOR_RED)
     case 2: // ##
-        t.charstyle.FGColor = COLOR_YELLOW
-        out.Write(t.escape.Yellow)
+        t.setFGColor(out, COLOR_YELLOW)
     case 3: // ###
-        t.charstyle.FGColor = COLOR_GREEN
-        out.Write(t.escape.Green)
+        t.setFGColor(out, COLOR_GREEN)
     case 4: // ####
-        t.charstyle.FGColor = COLOR_BLUE
-        out.Write(t.escape.Blue)
+        t.setFGColor(out, COLOR_BLUE)
     case 5: // #####
-        t.charstyle.FGColor = COLOR_MAGENTA
-        out.Write(t.escape.Magenta)
+        t.setFGColor(out, COLOR_MAGENTA)
     case 6: // ######
-        t.charstyle.FGColor = COLOR_CYAN
-        out.Write(t.escape.Cyan)
+        t.setFGColor(out, COLOR_CYAN)
     }
 
     t.charstyle.Bold = true
@@ -233,9 +290,7 @@ func (t *Terminal) Header(out *bytes.Buffer, text func() bool, level int) {
         return
     }
 
-    t.charstyle.Bold = false
-    t.charstyle.FGColor = COLOR_WHITE
-    out.Write(t.escape.Reset)
+    t.popStyle(out)
     t.endLine(out)
 }
 
@@ -334,9 +389,11 @@ func (t *Terminal) DoubleEmphasis(out *bytes.Buffer, text []byte) {
 
 // italic -> underline
 func (t *Terminal) Emphasis(out *bytes.Buffer, text []byte) {
+    t.pushStyle()
     out.Write(t.escape.Underline)
     out.Write(text)
-    out.Write(t.escape.Reset)
+    t.popStyle(out)
+    // out.Write(t.escape.Reset)
 }
 
 func (t *Terminal) Image(out *bytes.Buffer, link []byte, title []byte, alt []byte) {
