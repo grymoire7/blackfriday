@@ -4,9 +4,14 @@ import (
     "testing"
 )
 
-func runTerminalMarkdownBlock(input string, extensions int) string {
-    flags := TERM_NO_HEADER_FOOTER
+func runTerminalMarkdownBlock(input string, flags int) string {
+    flags |= TERM_NO_HEADER_FOOTER
 	renderer := TerminalRenderer(flags)
+    extensions := 0
+    extensions |= EXTENSION_NO_INTRA_EMPHASIS
+    extensions |= EXTENSION_TABLES
+    extensions |= EXTENSION_FENCED_CODE
+    extensions |= EXTENSION_AUTOLINK
 	return string(Markdown([]byte(input), renderer, extensions))
 }
 
@@ -27,16 +32,6 @@ func doTerminalTests(t *testing.T, tests []string, extensions int) {
 		if actual != expected {
 			t.Errorf("\nInput   [%#v]\nExpected[%#v]\nActual  [%#v]",
 				candidate, expected, actual)
-		}
-
-		// now test every substring to stress test bounds checking
-		if !testing.Short() {
-			for start := 0; start < len(input); start++ {
-				for end := start + 1; end <= len(input); end++ {
-					candidate = input[start:end]
-					_ = runTerminalMarkdownBlock(candidate, extensions)
-				}
-			}
 		}
 	}
 }
@@ -65,13 +60,7 @@ func TestTerminalPrefixHeader(t *testing.T) {
 		"\n\x1b[36m\x1b[1m# Header 7\x1b[0m\n",
 	}
 
-    extensions := 0
-    extensions |= EXTENSION_NO_INTRA_EMPHASIS
-    extensions |= EXTENSION_TABLES
-    extensions |= EXTENSION_FENCED_CODE
-    extensions |= EXTENSION_AUTOLINK
-
-	doTerminalTests(t, tests, extensions)
+	doTerminalTests(t, tests, 0)
 }
 
 func TestTerminalUnderlineHeaders(t *testing.T) {
@@ -105,13 +94,40 @@ func TestTerminalUnderlineHeaders(t *testing.T) {
 
 	}
 
-    extensions := 0
-    extensions |= EXTENSION_NO_INTRA_EMPHASIS
-    extensions |= EXTENSION_TABLES
-    extensions |= EXTENSION_FENCED_CODE
-    extensions |= EXTENSION_AUTOLINK
-
-	doTerminalTests(t, tests, extensions)
+	doTerminalTests(t, tests, 0)
 }
 
+func TestTerminalWrap(t *testing.T) {
+	var tests = []string{
+		" This is a wrap test. Wrap on.\n",
+		"\nThis is a wrap test.\nWrap on.\n",
+
+		"こんにちは。 This is a wrap test.\n",
+		"\nこんにちは。 This is a\nwrap test.\n",
+
+        // Uncomment when this kind of wrapping works.
+		// "こんにちは。 こんにちは。\n",
+		// "\nこんにちは。 \nこんにちは。\n",
+	}
+
+    flags := TERM_FIXED_WIDTH_20
+	doTerminalTests(t, tests, flags)
+}
+
+func TestTerminalRules(t *testing.T) {
+	var tests = []string{
+		"- - -\n",
+		"────────────────────\n",
+
+		"* * *\n",
+		"────────────────────\n",
+
+		"-----------------------------\n",
+		"────────────────────\n",
+
+	}
+
+    flags := TERM_FIXED_WIDTH_20
+	doTerminalTests(t, tests, flags)
+}
 

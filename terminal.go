@@ -18,12 +18,10 @@ package blackfriday
 import (
     "bytes"
     "fmt"
-    // "log"
     "regexp"
     "strings"
     "syscall"
     "unicode"
-    "unicode/utf8"
     "unsafe"
 )
 
@@ -45,6 +43,7 @@ const (
 // option flags
 const (
     TERM_NO_HEADER_FOOTER = 1 << iota
+    TERM_FIXED_WIDTH_20
 )
 
 type CharStyle struct {
@@ -117,7 +116,11 @@ func TerminalRenderer(flags int) Renderer {
     if err != nil {
         width = 80
     }
-    // log.Println("width: ", width)
+
+    // for unit testing
+    if flags&TERM_FIXED_WIDTH_20 != 0 {
+        width = 20
+    }
 
     return &Terminal{
         escape:     &vt100EscapeCodes,
@@ -199,6 +202,41 @@ func (t *Terminal) setFGColor(out *bytes.Buffer, c int) {
 
 }
 
+/* Some runes (e.g. こんにちは。) take up two cell widths in
+ * the terminal instead of one.  This complicates line wrapping
+ * a bit.
+ *
+ * Until the unicode package offers support of telling the difference
+ * we need our own function to do it.  For more information see:
+ *
+ * https://groups.google.com/forum/#!topic/golang-dev/oX7BHEdceis
+ */
+func (t *Terminal) runeWidth(r rune) int {
+    if r >= 0x1100 &&
+            (r <= 0x115f || r == 0x2329 || r == 0x232a ||
+                    (r >= 0x2e80 && r <= 0xa4cf && r != 0x303f) ||
+                    (r >= 0xac00 && r <= 0xd7a3) ||
+                    (r >= 0xf900 && r <= 0xfaff) ||
+                    (r >= 0xfe30 && r <= 0xfe6f) ||
+                    (r >= 0xff00 && r <= 0xff60) ||
+                    (r >= 0xffe0 && r <= 0xffe6) ||
+                    (r >= 0x20000 && r <= 0x2fffd) ||
+                    (r >= 0x30000 && r <= 0x3fffd)) {
+            return 2
+    }
+    return 1 
+}
+
+/* Calculates the number of terminal cells the given array of
+ * runes will require in the terminal.
+ */
+func (t *Terminal) runesCellLen(ra []rune) int {
+    cells := 0;
+    for _, r := range ra {
+        cells += t.runeWidth(r)
+    }
+    return cells
+}
 
 func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte) error {
     // Normalize whitespace
@@ -207,7 +245,7 @@ func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte) error {
     rpos := 0
 
     for rpos < len(r) {
-        remaining := t.termWidth - t.xpos
+        remainigCells := t.termWidth - t.xpos
         toolong := true
 
         // If we're at the beginning of a terminal line (t.xpos == 0)
@@ -219,13 +257,16 @@ func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte) error {
         }
 
         // if we don't need to wrap, then don't
-        if len(r[rpos:]) < remaining {
+        if t.runesCellLen(r[rpos:]) < remainigCells {
             out.WriteString(string(r[rpos:]))
-            t.xpos += len(r[rpos:])
+            t.xpos += t.runesCellLen(r[rpos:])
             break
         }
 
-        for i := remaining; i > 0; i-- {
+        // search backward for a space to wrap at
+        // TODO: this does not yet account for runes that require
+        // more than one terminal cell
+        for i := remainigCells; i > 0; i-- {
             if unicode.IsSpace(r[rpos+i]) {
                 out.WriteString(string(r[rpos : rpos+i]))
                 rpos += i + 1
@@ -237,6 +278,8 @@ func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte) error {
         // If we a run of text with no whitespace longer than the
         // remaining space availble and we're the start of a terminal
         // line (xpos == 0) then truncate the line.
+        // TODO: this does not yet account for runes that require
+        // more than one terminal cell
         if toolong && t.xpos == 0 {
             out.WriteString(string(r[rpos : rpos+t.termWidth]))
             rpos += t.termWidth
@@ -335,9 +378,11 @@ func (t *Terminal) ListItem(out *bytes.Buffer, text []byte, flags int) {
     } else {
         prefix = "\u2022 "
     }
-    t.xpos = utf8.RuneCount(text) + len(prefix)
+    s := strings.TrimSpace( string(text) )
+    // t.xpos = utf8.RuneCount([]byte(s)) + len(prefix)
+    t.xpos = t.runesCellLen([]rune(s)) + len(prefix)
     out.WriteString(prefix)
-    out.Write(text)
+    out.WriteString(s)
 }
 
 func (t *Terminal) Paragraph(out *bytes.Buffer, text func() bool) {
