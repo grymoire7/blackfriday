@@ -18,7 +18,7 @@ package blackfriday
 import (
     "bytes"
     "fmt"
-    "log"
+    // "log"
     "regexp"
     "strings"
     "syscall"
@@ -40,6 +40,11 @@ const (
     COLOR_MAGENTA
     COLOR_CYAN
     COLOR_WHITE
+)
+
+// option flags
+const (
+    TERM_NO_HEADER_FOOTER = 1 << iota
 )
 
 type CharStyle struct {
@@ -93,6 +98,7 @@ var vt100EscapeCodes = EscapeCodes{
 // Do not create this directly, instead use the TerminalRenderer function.
 type Terminal struct {
     escape     *EscapeCodes
+    flags      int
     termWidth  int
     xpos       int
     charstyle  CharStyle
@@ -111,10 +117,11 @@ func TerminalRenderer(flags int) Renderer {
     if err != nil {
         width = 80
     }
-    log.Println("width: ", width)
+    // log.Println("width: ", width)
 
     return &Terminal{
         escape:     &vt100EscapeCodes,
+        flags:      flags,
         termWidth:  width,
         xpos:       0,
         charstyle:  defaultCharStyle,
@@ -280,6 +287,8 @@ func (t *Terminal) Header(out *bytes.Buffer, text func() bool, level int) {
         t.setFGColor(out, COLOR_MAGENTA)
     case 6: // ######
         t.setFGColor(out, COLOR_CYAN)
+    default:
+        t.setFGColor(out, COLOR_CYAN)
     }
 
     t.charstyle.Bold = true
@@ -427,15 +436,15 @@ func (t *Terminal) RawHtmlTag(out *bytes.Buffer, tag []byte) {
 }
 
 func (t *Terminal) TripleEmphasis(out *bytes.Buffer, text []byte) {
-    out.WriteString("\033[7m")
+    t.pushStyle()
+    out.Write(t.escape.Inverse)
     out.Write(text)
-    out.WriteString("\033[0m")
+    t.popStyle(out)
 }
 
+// Not widely supported in terminal
 func (t *Terminal) StrikeThrough(out *bytes.Buffer, text []byte) {
-    out.WriteString("--")
     out.Write(text)
-    out.WriteString("--")
 }
 
 // TODO: this
@@ -460,6 +469,8 @@ func (t *Terminal) DocumentHeader(out *bytes.Buffer) {
 }
 
 func (t *Terminal) DocumentFooter(out *bytes.Buffer) {
-    out.WriteString("\nGMAN(1) Version ")
-    out.WriteString(VERSION)
+    if (t.flags & TERM_NO_HEADER_FOOTER) == 0 {
+        out.WriteString("\nGMAN(1) Version ")
+        out.WriteString(VERSION)
+    }
 }
