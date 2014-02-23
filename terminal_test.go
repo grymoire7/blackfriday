@@ -102,6 +102,9 @@ func TestTerminalWrap(t *testing.T) {
 		" This is a wrap test. Wrap on.\n",
 		"\nThis is a wrap test.\nWrap on.\n",
 
+		"123456789012345678901234567890\n",
+		"\n12345678901234567890\n1234567890\n",
+
 		"こんにちは。 This is a wrap test.\n",
 		"\nこんにちは。 This is a\nwrap test.\n",
 
@@ -124,6 +127,26 @@ func TestTerminalRules(t *testing.T) {
 
 		"-----------------------------\n",
 		"────────────────────\n",
+
+	}
+
+    flags := TERM_FIXED_WIDTH_20
+	doTerminalTests(t, tests, flags)
+}
+
+func TestTerminalLists(t *testing.T) {
+	var tests = []string{
+		"1. one\n3. two\n",
+		"\n1. one\n2. two\n",
+
+		"* one\n* two\n",
+		"\n\u2022 one\n\u2022 two\n",
+
+		" - one\n - two\n",
+		"\n\u2022 one\n\u2022 two\n",
+
+		"- This is a wrap test. Wrap on.\n- two\n",
+		"\n\u2022 This is a wrap test.\nWrap on.\n\u2022 two\n",
 
 	}
 
