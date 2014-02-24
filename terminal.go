@@ -240,12 +240,13 @@ func (t *Terminal) runesCellLen(ra []rune) int {
 
 // Wraps text with given line prefix and writes to out buffer.
 func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte, prefix string) error {
+    // escapeSpecialChars(out, text) ???
     // Normalize whitespace
     s := t.whitespace.ReplaceAll(text, []byte(" "))
     r := bytes.Runes(s)
     rpos := 0
-    prefixLen := len(prefix)
-    out.WriteString(prefix)
+    prefixLen := 0 // len(prefix)
+    // out.WriteString(prefix)
 
     for rpos < len(r) {
         remainigCells := t.termWidth - t.xpos - prefixLen
@@ -278,7 +279,7 @@ func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte, prefix string) er
             }
         }
 
-        // If we a run of text with no whitespace longer than the
+        // If we have a run of text with no whitespace longer than the
         // remaining space availble and we're the start of a terminal
         // line (xpos == 0) then truncate the line.
         // TODO: this does not yet account for runes that require
@@ -290,7 +291,7 @@ func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte, prefix string) er
 
         if rpos < len(r) {
             t.endLine(out)
-            out.WriteString(prefix)
+            // out.WriteString(prefix)
         }
     }
 
@@ -303,6 +304,7 @@ func (t *Terminal) endLine(out *bytes.Buffer) {
 }
 
 // render code chunks using verbatim, or listings if we have a language
+// we currently ignore the language
 func (t *Terminal) BlockCode(out *bytes.Buffer, text []byte, lang string) {
     out.Write(text)
 }
@@ -312,6 +314,7 @@ func (t *Terminal) BlockQuote(out *bytes.Buffer, text []byte) {
 }
 
 func (t *Terminal) BlockHtml(out *bytes.Buffer, text []byte) {
+    out.WriteString("\n!!! BlockHtml is currently unsupported.\n")
     out.Write(text)
 }
 
@@ -414,11 +417,11 @@ func (t *Terminal) TableCell(out *bytes.Buffer, text []byte, align int) {
 }
 
 func (t *Terminal) Footnotes(out *bytes.Buffer, text func() bool) {
-
+    out.WriteString("\n!!! Footnotes are currently unsupported.\n")
 }
 
 func (t *Terminal) FootnoteItem(out *bytes.Buffer, name, text []byte, flags int) {
-
+    out.WriteString("\n!!! Footnote items are currently unsupported.\n")
 }
 
 func (t *Terminal) AutoLink(out *bytes.Buffer, link []byte, kind int) {
@@ -433,25 +436,30 @@ func (t *Terminal) AutoLink(out *bytes.Buffer, link []byte, kind int) {
 }
 
 func (t *Terminal) CodeSpan(out *bytes.Buffer, text []byte) {
-    t.endLine(out)
-    escapeSpecialChars(out, text)
-    t.endLine(out)
-}
-
-// bold
-func (t *Terminal) DoubleEmphasis(out *bytes.Buffer, text []byte) {
-    out.Write(t.escape.Bold)
-    out.Write(text)
-    out.Write(t.escape.Reset)
+    t.NormalText(out, text)
 }
 
 // italic -> underline
 func (t *Terminal) Emphasis(out *bytes.Buffer, text []byte) {
     t.pushStyle()
     out.Write(t.escape.Underline)
-    out.Write(text)
+    t.NormalText(out, text)
     t.popStyle(out)
-    // out.Write(t.escape.Reset)
+}
+
+// bold
+func (t *Terminal) DoubleEmphasis(out *bytes.Buffer, text []byte) {
+    t.pushStyle()
+    out.Write(t.escape.Bold)
+    t.NormalText(out, text)
+    t.popStyle(out)
+}
+
+func (t *Terminal) TripleEmphasis(out *bytes.Buffer, text []byte) {
+    t.pushStyle()
+    out.Write(t.escape.Inverse)
+    t.NormalText(out, text)
+    t.popStyle(out)
 }
 
 func (t *Terminal) Image(out *bytes.Buffer, link []byte, title []byte, alt []byte) {
@@ -470,7 +478,7 @@ func (t *Terminal) Image(out *bytes.Buffer, link []byte, title []byte, alt []byt
 }
 
 func (t *Terminal) LineBreak(out *bytes.Buffer) {
-    out.WriteString("qqqqqq\n")
+    out.WriteString("\n!!! LineBreak was called. Amazing.\n")
 }
 
 func (t *Terminal) Link(out *bytes.Buffer, link []byte, title []byte, content []byte) {
@@ -481,23 +489,19 @@ func (t *Terminal) Link(out *bytes.Buffer, link []byte, title []byte, content []
 }
 
 func (t *Terminal) RawHtmlTag(out *bytes.Buffer, tag []byte) {
-}
-
-func (t *Terminal) TripleEmphasis(out *bytes.Buffer, text []byte) {
-    t.pushStyle()
-    out.Write(t.escape.Inverse)
-    t.NormalText(out, text)
-    t.popStyle(out)
+    out.WriteString("\n!!! Raw HTML tags are unsupported.\n")
 }
 
 // Not widely supported in terminal
 func (t *Terminal) StrikeThrough(out *bytes.Buffer, text []byte) {
-    out.Write(text)
+    t.NormalText(out, []byte("~~"))
+    t.NormalText(out, text)
+    t.NormalText(out, []byte("~~"))
 }
 
 // TODO: this
 func (t *Terminal) FootnoteRef(out *bytes.Buffer, ref []byte, id int) {
-
+    out.WriteString("\n!!! Footnote refs are currently unsupported.\n")
 }
 
 func (t *Terminal) Entity(out *bytes.Buffer, entity []byte) {
@@ -522,3 +526,4 @@ func (t *Terminal) DocumentFooter(out *bytes.Buffer) {
         out.WriteString(VERSION)
     }
 }
+
