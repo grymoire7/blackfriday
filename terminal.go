@@ -18,6 +18,8 @@ package blackfriday
 import (
     "bytes"
     "fmt"
+    "io/ioutil"
+    "log"
     "regexp"
     "strings"
     "syscall"
@@ -44,6 +46,7 @@ const (
 const (
     TERM_NO_HEADER_FOOTER = 1 << iota
     TERM_FIXED_WIDTH_20
+    TERM_DEBUG_LOGGING
 )
 
 type CharStyle struct {
@@ -104,6 +107,7 @@ type Terminal struct {
     styleStack []CharStyle
     listCount  int
     whitespace *regexp.Regexp
+    logging    bool
 }
 
 // TerminalRenderer creates and configures a Terminal object, which
@@ -122,6 +126,12 @@ func TerminalRenderer(flags int) Renderer {
         width = 20
     }
 
+    logging := true
+    if flags&TERM_DEBUG_LOGGING == 0 {
+        logging = false
+        log.SetOutput(ioutil.Discard)
+    }
+
     return &Terminal{
         escape:     &vt100EscapeCodes,
         flags:      flags,
@@ -130,6 +140,7 @@ func TerminalRenderer(flags int) Renderer {
         charstyle:  defaultCharStyle,
         listCount:  0,
         whitespace: regexp.MustCompile(`\s+`),
+        logging:    logging,
     }
 }
 
@@ -314,8 +325,8 @@ func (t *Terminal) BlockQuote(out *bytes.Buffer, text []byte) {
 }
 
 func (t *Terminal) BlockHtml(out *bytes.Buffer, text []byte) {
-    out.WriteString("\n!!! BlockHtml is currently unsupported.\n")
-    out.Write(text)
+    log.Println("!!! BlockHtml is currently unsupported.")
+    log.Println(string(text))
 }
 
 func (t *Terminal) Header(out *bytes.Buffer, text func() bool, level int) {
@@ -417,11 +428,12 @@ func (t *Terminal) TableCell(out *bytes.Buffer, text []byte, align int) {
 }
 
 func (t *Terminal) Footnotes(out *bytes.Buffer, text func() bool) {
-    out.WriteString("\n!!! Footnotes are currently unsupported.\n")
+    log.Println("!!! Footnotes are currently unsupported.")
 }
 
 func (t *Terminal) FootnoteItem(out *bytes.Buffer, name, text []byte, flags int) {
-    out.WriteString("\n!!! Footnote items are currently unsupported.\n")
+    log.Println("!!! Footnote items are currently unsupported.")
+    log.Println(string(text))
 }
 
 func (t *Terminal) AutoLink(out *bytes.Buffer, link []byte, kind int) {
@@ -489,7 +501,8 @@ func (t *Terminal) Link(out *bytes.Buffer, link []byte, title []byte, content []
 }
 
 func (t *Terminal) RawHtmlTag(out *bytes.Buffer, tag []byte) {
-    out.WriteString("\n!!! Raw HTML tags are unsupported.\n")
+    log.Println("!!! Raw HTML tags are unsupported.")
+    log.Println(string(tag))
 }
 
 // Not widely supported in terminal
@@ -501,7 +514,8 @@ func (t *Terminal) StrikeThrough(out *bytes.Buffer, text []byte) {
 
 // TODO: this
 func (t *Terminal) FootnoteRef(out *bytes.Buffer, ref []byte, id int) {
-    out.WriteString("\n!!! Footnote refs are currently unsupported.\n")
+    log.Println("!!! Footnote refs are currently unsupported.")
+    log.Println(string(id) + ":" + string(ref))
 }
 
 func (t *Terminal) Entity(out *bytes.Buffer, entity []byte) {
