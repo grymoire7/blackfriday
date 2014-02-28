@@ -199,3 +199,23 @@ func TestTerminalCodeSpan(t *testing.T) {
     doTerminalTests(t, tests, flags)
 }
 
+
+func TestTerminalEntities(t *testing.T) {
+    var tests = []string{
+        "copy symbol entity: &copy;\n",
+        "\ncopy symbol entity: ©\n",
+
+        "ene con tilde: n&#771;\n",
+        "\nene con tilde: ñ\n",
+
+        "euro symbol: &euro;\n",
+        "\neuro symbol: €\n",
+
+        "&nbsp;&lt;&gt;&amp;&cent;&pound;&yen;&euro;&copy;&reg;\n",
+        "\n\u00a0<>&¢£¥€©®\n",
+
+    }
+
+    doTerminalTests(t, tests, 0)
+}
+

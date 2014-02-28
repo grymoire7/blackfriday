@@ -18,6 +18,7 @@ package blackfriday
 import (
     "bytes"
     "fmt"
+    "html"
     "io/ioutil"
     "log"
     "regexp"
@@ -519,8 +520,8 @@ func (t *Terminal) FootnoteRef(out *bytes.Buffer, ref []byte, id int) {
 }
 
 func (t *Terminal) Entity(out *bytes.Buffer, entity []byte) {
-    // TODO: convert this into a unicode character?
-    out.Write(entity)
+    s := html.UnescapeString( string(entity) )
+    out.WriteString(s)
 }
 
 func (t *Terminal) NormalText(out *bytes.Buffer, text []byte) {
