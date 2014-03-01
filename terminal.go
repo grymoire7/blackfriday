@@ -17,11 +17,13 @@ package blackfriday
 
 import (
     "bytes"
+    "errors"
     "fmt"
     "html"
     "io/ioutil"
     "log"
     "regexp"
+    "runtime"
     "strings"
     "syscall"
     "unicode"
@@ -117,7 +119,7 @@ type Terminal struct {
 // flags is a set of TERMINAL_* options ORed together (currently no such options
 // are defined).
 func TerminalRenderer(flags int) Renderer {
-    width, _, err := getTerminalSize(0)
+    width, err := getTerminalSize()
     if err != nil {
         width = 80
     }
@@ -132,6 +134,7 @@ func TerminalRenderer(flags int) Renderer {
         logging = false
         log.SetOutput(ioutil.Discard)
     }
+    log.Println("Width:", width)
 
     return &Terminal{
         escape:     &vt100EscapeCodes,
@@ -146,20 +149,45 @@ func TerminalRenderer(flags int) Renderer {
 }
 
 // GetSize returns the dimensions of the given terminal.
-func getTerminalSize(fd int) (width, height int, err error) {
+func getTerminalSize() (width int, err error) {
+    // Dimensions: Row, Col, XPixel, YPixel
     var dimensions [4]uint16
+    const (
+        TIOCGWINSZ_OSX = 1074295912
+    )
 
-    _, _, err = syscall.Syscall6(
-        syscall.SYS_IOCTL,
-        uintptr(fd),
-        uintptr(syscall.TIOCGWINSZ),
-        uintptr(unsafe.Pointer(&dimensions)),
-        0, 0, 0)
-
-    if err != nil {
-        return -1, -1, err
+    tio := syscall.TIOCGWINSZ
+    if runtime.GOOS == "darwin" {
+        tio = TIOCGWINSZ_OSX
     }
-    return int(dimensions[1]), int(dimensions[0]), err
+
+    r1, _, _ := syscall.Syscall(
+        syscall.SYS_IOCTL,
+        uintptr(syscall.Stdout),
+        uintptr(tio),
+        uintptr(unsafe.Pointer(&dimensions)),
+    )
+    if int(r1) == -1 {
+        r1, _, _ = syscall.Syscall(
+            syscall.SYS_IOCTL,
+            uintptr(syscall.Stdin),
+            uintptr(tio),
+            uintptr(unsafe.Pointer(&dimensions)),
+        )
+    }
+    if int(r1) == -1 {
+        r1, _, _ = syscall.Syscall(
+            syscall.SYS_IOCTL,
+            uintptr(syscall.Stderr),
+            uintptr(tio),
+            uintptr(unsafe.Pointer(&dimensions)),
+        )
+    }
+    if int(r1) == -1 {
+        return 0, errors.New("GetWinsize error")
+    }
+
+    return int(dimensions[1]), err
 }
 
 func (t *Terminal) pushStyle() {
