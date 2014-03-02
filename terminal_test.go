@@ -106,24 +106,16 @@ func TestTerminalWrap(t *testing.T) {
         "\n1 3 5 7 9 1 3 5 7 9\n1 3 5 7 9 1\n",
 
         "1 3 5 7 9 *1x3* 5 7 9 1 3 5 7 9 1\n",
-        "\n1 3 5 7 9 \x1b[4m1x3\x1b[0m 5 7\n9 1 3 5 7 9 1\n",
-        // BUG: should be this, needs to be fixed
-        // "\n1 3 5 7 9 \x1b[4m1x3\x1b[0m 5 7 9\n1 3 5 7 9 1\n",
+        "\n1 3 5 7 9 \x1b[4m1x3\x1b[0m 5 7 9\n1 3 5 7 9 1\n",
 
         "This is a **wrap** test. Wrap on.\n",
-        "\nThis is a \x1b[1mwrap\x1b[0m\ntest. Wrap on.\n",
-        // BUG: should be this, needs to be fixed
-        // "\nThis is a \x1b[1mwrap\x1b[0m test.\nWrap on.\n",
+        "\nThis is a \x1b[1mwrap\x1b[0m test.\nWrap on.\n",
 
         "This is a ***wrap*** test. Wrap on.\n",
-        "\nThis is a \x1b[7mwrap\x1b[0m\ntest. Wrap on.\n",
-        // BUG: should be this, needs to be fixed
-        // "\nThis is a \x1b[7mwrap\x1b[0m test.\nWrap on.\n",
+        "\nThis is a \x1b[7mwrap\x1b[0m test.\nWrap on.\n",
 
         " This is a *wrapper* test. Wrap on.\n",
-        "\nThis is a \x1b[4m\nwrapper\x1b[0m test. Wrap\non.\n",
-        // BUG: should be this, needs to be fixed
-        // "\nThis is a \x1b[4mwrapper\x1b[0m\ntest. Wrap on.\n",
+        "\nThis is a \x1b[4mwrapper\x1b[0m\ntest. Wrap on.\n",
 
         "123456789012345678901234567890\n",
         "\n12345678901234567890\n1234567890\n",

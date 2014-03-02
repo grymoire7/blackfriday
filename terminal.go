@@ -280,13 +280,13 @@ func (t *Terminal) runesCellLen(ra []rune) int {
 
 // Wraps text with given line prefix and writes to out buffer.
 func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte, prefix string) error {
+    // fmt.Println(string(text))
     // escapeSpecialChars(out, text) ???
     // Normalize whitespace
     s := t.whitespace.ReplaceAll(text, []byte(" "))
     r := bytes.Runes(s)
     rpos := 0
     prefixLen := 0 // len(prefix)
-    // out.WriteString(prefix)
 
     for rpos < len(r) {
         remainigCells := t.termWidth - t.xpos - prefixLen
@@ -482,9 +482,16 @@ func (t *Terminal) CodeSpan(out *bytes.Buffer, text []byte) {
 
 // italic -> underline
 func (t *Terminal) Emphasis(out *bytes.Buffer, text []byte) {
+    if len(text) == 0 {
+        return
+    }
     t.pushStyle()
     out.Write(t.escape.Underline)
-    t.NormalText(out, text)
+    // We cannot call NormalText (with line wrap) since
+    // the caller processes the `text` before calling this
+    // method.
+    // t.NormalText(out, text)
+    out.Write(text)
     t.popStyle(out)
 }
 
@@ -492,14 +499,14 @@ func (t *Terminal) Emphasis(out *bytes.Buffer, text []byte) {
 func (t *Terminal) DoubleEmphasis(out *bytes.Buffer, text []byte) {
     t.pushStyle()
     out.Write(t.escape.Bold)
-    t.NormalText(out, text)
+    out.Write(text)
     t.popStyle(out)
 }
 
 func (t *Terminal) TripleEmphasis(out *bytes.Buffer, text []byte) {
     t.pushStyle()
     out.Write(t.escape.Inverse)
-    t.NormalText(out, text)
+    out.Write(text)
     t.popStyle(out)
 }
 
