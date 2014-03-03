@@ -119,6 +119,11 @@ type Terminal struct {
 // flags is a set of TERMINAL_* options ORed together (currently no such options
 // are defined).
 func TerminalRenderer(flags int) Renderer {
+    return NewTerminal(flags)
+}
+
+// Exposed for unit testing.  TerminalRenderer is used in production.
+func NewTerminal(flags int) *Terminal {
     width, err := getTerminalSize()
     if err != nil {
         width = 80
@@ -267,9 +272,8 @@ func (t *Terminal) runeWidth(r rune) int {
     return 1 
 }
 
-/* Calculates the number of terminal cells the given array of
- * runes will require in the terminal.
- */
+// Calculates the number of terminal cells the given array of
+// runes will require in the terminal.
 func (t *Terminal) runesCellLen(ra []rune) int {
     cells := 0;
     for _, r := range ra {
@@ -278,9 +282,42 @@ func (t *Terminal) runesCellLen(ra []rune) int {
     return cells
 }
 
+// Returns the number of runes from the given array that will
+// fit in the given width number of terminal cells.
+func (t *Terminal) runesInWidth(ra []rune, width int) int {
+    runeCount := 0
+    cellCount := 0
+    for _, r := range ra {
+        cellCount += t.runeWidth(r)
+        runeCount++
+        if cellCount == width {
+            break
+        }
+    }
+    if runeCount > width {
+        runeCount = width
+    }
+    if t.logging && runeCount < 0 {
+        fmt.Println("!!! runeCount < 0,", runeCount)
+        fmt.Println("!!!", string(ra))
+        runeCount = 0 
+    }
+    return runeCount
+}
+
+// Public wrapper for testing.
+func (t *Terminal) RunesInWidth(r []rune, width int) int {
+    return t.runesInWidth(r, width)
+}
+
+
+func (t *Terminal) WrapTextTest(out *bytes.Buffer, text []byte, prefix string) error {
+    return t.wrapTextOut(out, text, prefix)
+}
+
+
 // Wraps text with given line prefix and writes to out buffer.
 func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte, prefix string) error {
-    // fmt.Println(string(text))
     // escapeSpecialChars(out, text) ???
     // Normalize whitespace
     s := t.whitespace.ReplaceAll(text, []byte(" "))
@@ -288,9 +325,17 @@ func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte, prefix string) er
     rpos := 0
     prefixLen := 0 // len(prefix)
 
+    if t.logging {
+        fmt.Println("len(r) =", len(r), "text:", string(text))
+    }
+
     for rpos < len(r) {
-        remainigCells := t.termWidth - t.xpos - prefixLen
+        remainingCells := t.termWidth - t.xpos - prefixLen
         toolong := true
+
+        if t.logging {
+            fmt.Println("len(r) =", len(r))
+        }
 
         // If we're at the beginning of a terminal line (t.xpos == 0)
         // then advance rpos past any whitespace.
@@ -301,19 +346,28 @@ func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte, prefix string) er
         }
 
         // if we don't need to wrap, then don't
-        if t.runesCellLen(r[rpos:]) < remainigCells {
+        if t.runesCellLen(r[rpos:]) < remainingCells {
             out.WriteString(string(r[rpos:]))
             t.xpos += t.runesCellLen(r[rpos:])
             break
         }
 
         // search backward for a space to wrap at
-        // TODO: this does not yet account for runes that require
-        // more than one terminal cell
-        for i := remainigCells; i > 0; i-- {
+        remainingRunes := t.runesInWidth(r[rpos:], remainingCells)
+        rend := rpos + remainingRunes - 1
+        if t.logging {
+            fmt.Println("-------")
+            fmt.Println("remainingRunes:", remainingRunes)
+            fmt.Println("remaining runes:", string(r[rpos:]))
+            fmt.Println("rpos:", rpos, "rend:", rend)
+            fmt.Println("remainingCells:", remainingCells)
+        }
+
+        for i := rend; i > rpos; i-- {
             if unicode.IsSpace(r[rpos+i]) {
                 out.WriteString(string(r[rpos : rpos+i]))
-                rpos += i + 1
+                // fmt.Println(":::", string(r[rpos : rpos+i]), ":::")
+                rpos += i // + 1
                 toolong = false
                 break
             }
@@ -325,11 +379,12 @@ func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte, prefix string) er
         // TODO: this does not yet account for runes that require
         // more than one terminal cell
         if toolong && t.xpos == 0 {
-            out.WriteString(string(r[rpos : rpos+t.termWidth-prefixLen]))
-            rpos += t.termWidth - prefixLen
+            remainingRunes := t.runesInWidth(r[rpos:], t.termWidth - prefixLen)
+            out.WriteString(string(r[rpos : rpos + remainingRunes]))
+            rpos += remainingRunes
         }
 
-        if rpos < len(r) {
+        if rpos < len(r) || t.xpos == t.termWidth {
             t.endLine(out)
             // out.WriteString(prefix)
         }
@@ -477,7 +532,8 @@ func (t *Terminal) AutoLink(out *bytes.Buffer, link []byte, kind int) {
 }
 
 func (t *Terminal) CodeSpan(out *bytes.Buffer, text []byte) {
-    t.NormalText(out, text)
+    out.Write(text)
+    // t.NormalText(out, text)
 }
 
 // italic -> underline
@@ -531,9 +587,9 @@ func (t *Terminal) LineBreak(out *bytes.Buffer) {
 
 func (t *Terminal) Link(out *bytes.Buffer, link []byte, title []byte, content []byte) {
     t.Emphasis(out, link)
-    t.NormalText(out, []byte("["))
-    t.NormalText(out, content)
-    t.NormalText(out, []byte("]"))
+    // t.NormalText(out, []byte("["))
+    // t.NormalText(out, content)
+    // t.NormalText(out, []byte("]"))
 }
 
 func (t *Terminal) RawHtmlTag(out *bytes.Buffer, tag []byte) {
@@ -544,7 +600,7 @@ func (t *Terminal) RawHtmlTag(out *bytes.Buffer, tag []byte) {
 // Not widely supported in terminal
 func (t *Terminal) StrikeThrough(out *bytes.Buffer, text []byte) {
     t.NormalText(out, []byte("~~"))
-    t.NormalText(out, text)
+    out.Write(text)
     t.NormalText(out, []byte("~~"))
 }
 

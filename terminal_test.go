@@ -6,6 +6,7 @@ import (
 
 func runTerminalMarkdownBlock(input string, flags int) string {
     flags |= TERM_NO_HEADER_FOOTER
+    // flags |= TERM_DEBUG_LOGGING
     renderer := TerminalRenderer(flags)
     extensions := 0
     extensions |= EXTENSION_NO_INTRA_EMPHASIS
@@ -13,6 +14,11 @@ func runTerminalMarkdownBlock(input string, flags int) string {
     extensions |= EXTENSION_FENCED_CODE
     extensions |= EXTENSION_AUTOLINK
     return string(Markdown([]byte(input), renderer, extensions))
+}
+
+func createTerminal(flags int) *Terminal {
+    flags |= TERM_NO_HEADER_FOOTER
+    return NewTerminal(flags)
 }
 
 func doTerminalTests(t *testing.T, tests []string, extensions int) {
@@ -34,6 +40,23 @@ func doTerminalTests(t *testing.T, tests []string, extensions int) {
                 candidate, expected, actual)
         }
     }
+}
+
+func doTerminalRuneTest(t *testing.T, r []rune, width int, expected int) {
+    term := NewTerminal(0)
+    actual := term.RunesInWidth(r, width)
+    if actual != expected {
+        t.Errorf("\nInput   [%#v]\nExpected[%#v]\nActual  [%#v]",
+            string(r), expected, actual)
+    }
+}
+
+func TestTerminalRunes(t *testing.T) {
+    doTerminalRuneTest(t, []rune("whatever"), 10, 8)
+    doTerminalRuneTest(t, []rune("whatever this is"), 10, 10)
+    doTerminalRuneTest(t, []rune("こんにちは。 こんにちは。"), 10, 5)
+    doTerminalRuneTest(t, []rune("こんにちは。こんにちは。"), 10, 5)
+    // doTerminalRuneTest(t, []rune("whatever"), -10, 0)
 }
 
 func TestTerminalPrefixHeader(t *testing.T) {
@@ -99,8 +122,9 @@ func TestTerminalUnderlineHeaders(t *testing.T) {
 
 func TestTerminalWrap(t *testing.T) {
     var tests = []string{
-        " This is a wrap test. Wrap on.\n",
-        "\nThis is a wrap test.\nWrap on.\n",
+        "This is a wrap test. Wrap on.\n",
+        //                  ^-- 20 at period
+        "\nThis is a wrap\ntest. Wrap on.\n",
 
         "1 3 5 7 9 1 3 5 7 9 1 3 5 7 9 1\n",
         "\n1 3 5 7 9 1 3 5 7 9\n1 3 5 7 9 1\n",
@@ -109,10 +133,10 @@ func TestTerminalWrap(t *testing.T) {
         "\n1 3 5 7 9 \x1b[4m1x3\x1b[0m 5 7 9\n1 3 5 7 9 1\n",
 
         "This is a **wrap** test. Wrap on.\n",
-        "\nThis is a \x1b[1mwrap\x1b[0m test.\nWrap on.\n",
+        "\nThis is a \x1b[1mwrap\x1b[0m\ntest. Wrap on.\n",
 
         "This is a ***wrap*** test. Wrap on.\n",
-        "\nThis is a \x1b[7mwrap\x1b[0m test.\nWrap on.\n",
+        "\nThis is a \x1b[7mwrap\x1b[0m\ntest. Wrap on.\n",
 
         " This is a *wrapper* test. Wrap on.\n",
         "\nThis is a \x1b[4mwrapper\x1b[0m\ntest. Wrap on.\n",
@@ -121,7 +145,7 @@ func TestTerminalWrap(t *testing.T) {
         "\n12345678901234567890\n1234567890\n",
 
         "こんにちは。 This is a wrap test.\n",
-        "\nこんにちは。 This is a\nwrap test.\n",
+        "\nこんにちは。 This\nis a wrap test.\n",
 
         // BUG: Uncomment when this kind of wrapping works.
         // "こんにちは。 こんにちは。\n",
@@ -161,7 +185,7 @@ func TestTerminalLists(t *testing.T) {
         "\n\u2022 one\n\u2022 two\n",
 
         "- This is a wrap test. Wrap on.\n- two\n",
-        "\n\u2022 This is a wrap test.\nWrap on.\n\u2022 two\n",
+        "\n\u2022 This is a wrap\ntest. Wrap on.\n\u2022 two\n",
 
     }
 
