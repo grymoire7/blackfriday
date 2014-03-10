@@ -2,6 +2,10 @@
 // Blackfriday Markdown Processor (forked)
 // Available at http://github.com/grymoire7/blackfriday
 //
+// The terminal renderer
+//
+//
+//
 // Copyright © 2014
 // Distributed under the Simplified BSD License.
 // See README.md for details.
@@ -111,6 +115,7 @@ type Terminal struct {
     listCount  int
     whitespace *regexp.Regexp
     logging    bool
+    outBuffer  *bytes.Buffer
 }
 
 // TerminalRenderer creates and configures a Terminal object, which
@@ -322,11 +327,12 @@ func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte, prefix string) er
     // Normalize whitespace
     s := t.whitespace.ReplaceAll(text, []byte(" "))
     r := bytes.Runes(s)
+    rcells := t.runesCellLen(r[:])
     rpos := 0
     prefixLen := 0 // len(prefix)
 
     if t.logging {
-        fmt.Println("len(r) =", len(r), "text:", string(text))
+        fmt.Println("|len(r) =", len(r), "rcells =", rcells, "text:", string(text))
     }
 
     for rpos < len(r) {
@@ -334,7 +340,7 @@ func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte, prefix string) er
         toolong := true
 
         if t.logging {
-            fmt.Println("len(r) =", len(r))
+            fmt.Println(":len(r) =", len(r), "rcells =", rcells)
         }
 
         // If we're at the beginning of a terminal line (t.xpos == 0)
@@ -355,6 +361,13 @@ func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte, prefix string) er
         // search backward for a space to wrap at
         remainingRunes := t.runesInWidth(r[rpos:], remainingCells)
         rend := rpos + remainingRunes - 1
+
+        // we want to check one rune beyond the end if we
+        // can in case it's a space
+        if len(r) > remainingRunes {
+            rend++
+        }
+
         if t.logging {
             fmt.Println("-------")
             fmt.Println("remainingRunes:", remainingRunes)
@@ -363,7 +376,7 @@ func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte, prefix string) er
             fmt.Println("remainingCells:", remainingCells)
         }
 
-        for i := rend; i > rpos; i-- {
+        for i := rend; i >= rpos; i-- {
             if unicode.IsSpace(r[rpos+i]) {
                 out.WriteString(string(r[rpos : rpos+i]))
                 // fmt.Println(":::", string(r[rpos : rpos+i]), ":::")
@@ -401,11 +414,12 @@ func (t *Terminal) endLine(out *bytes.Buffer) {
 // render code chunks using verbatim, or listings if we have a language
 // we currently ignore the language
 func (t *Terminal) BlockCode(out *bytes.Buffer, text []byte, lang string) {
+    // t.NormalText(out, text)
     out.Write(text)
 }
 
 func (t *Terminal) BlockQuote(out *bytes.Buffer, text []byte) {
-    out.Write(text)
+    t.NormalText(out, text)
 }
 
 func (t *Terminal) BlockHtml(out *bytes.Buffer, text []byte) {
@@ -471,22 +485,24 @@ func (t *Terminal) List(out *bytes.Buffer, text func() bool, flags int) {
     }
 }
 
+// BUG: Does not do line wrapping yet
 func (t *Terminal) ListItem(out *bytes.Buffer, text []byte, flags int) {
     t.endLine(out)
-    var prefix string
+    var prefixed string
+    s := strings.TrimSpace( string(text) )
+
     if flags&LIST_TYPE_ORDERED != 0 {
         t.listCount++
-        prefix = fmt.Sprintf("%d. ", t.listCount)
+        prefixed = fmt.Sprintf("%d. %s", t.listCount, s)
     } else {
-        prefix = "\u2022 "
+        prefixed = "\u2022 " + s
     }
-    s := strings.TrimSpace( string(text) )
-    // t.xpos = utf8.RuneCount([]byte(s)) + len(prefix)
-    t.xpos = t.runesCellLen([]rune(s)) + len(prefix)
-    out.WriteString(prefix)
-    out.WriteString(s)
+
+    out.WriteString(prefixed)
+    // t.NormalText(out, []byte(prefix + s))
 }
 
+// TODO: check out == t.outBuffer
 func (t *Terminal) Paragraph(out *bytes.Buffer, text func() bool) {
     marker := out.Len()
     t.endLine(out)
@@ -520,6 +536,7 @@ func (t *Terminal) FootnoteItem(out *bytes.Buffer, name, text []byte, flags int)
     log.Println(string(text))
 }
 
+// TODO: nail down what output should be and use NormalText()
 func (t *Terminal) AutoLink(out *bytes.Buffer, link []byte, kind int) {
     out.WriteString("href[")
     if kind == LINK_TYPE_EMAIL {
@@ -532,8 +549,8 @@ func (t *Terminal) AutoLink(out *bytes.Buffer, link []byte, kind int) {
 }
 
 func (t *Terminal) CodeSpan(out *bytes.Buffer, text []byte) {
-    out.Write(text)
-    // t.NormalText(out, text)
+    // out.Write(text)
+    t.NormalText(out, text)
 }
 
 // italic -> underline
@@ -543,11 +560,7 @@ func (t *Terminal) Emphasis(out *bytes.Buffer, text []byte) {
     }
     t.pushStyle()
     out.Write(t.escape.Underline)
-    // We cannot call NormalText (with line wrap) since
-    // the caller processes the `text` before calling this
-    // method.
-    // t.NormalText(out, text)
-    out.Write(text)
+    t.NormalText(out, text)
     t.popStyle(out)
 }
 
@@ -555,14 +568,14 @@ func (t *Terminal) Emphasis(out *bytes.Buffer, text []byte) {
 func (t *Terminal) DoubleEmphasis(out *bytes.Buffer, text []byte) {
     t.pushStyle()
     out.Write(t.escape.Bold)
-    out.Write(text)
+    t.NormalText(out, text)
     t.popStyle(out)
 }
 
 func (t *Terminal) TripleEmphasis(out *bytes.Buffer, text []byte) {
     t.pushStyle()
     out.Write(t.escape.Inverse)
-    out.Write(text)
+    t.NormalText(out, text)
     t.popStyle(out)
 }
 
@@ -570,13 +583,13 @@ func (t *Terminal) Image(out *bytes.Buffer, link []byte, title []byte, alt []byt
     if bytes.HasPrefix(link, []byte("http://")) || bytes.HasPrefix(link, []byte("https://")) {
         // treat it like a link
         out.WriteString("href[")
-        out.Write(link)
+        t.NormalText(out, link)
         out.WriteString("][")
         out.Write(alt)
         out.WriteString("]")
     } else {
         out.WriteString("[")
-        out.Write(link)
+        t.NormalText(out, link)
         out.WriteString("]")
     }
 }
@@ -600,7 +613,7 @@ func (t *Terminal) RawHtmlTag(out *bytes.Buffer, tag []byte) {
 // Not widely supported in terminal
 func (t *Terminal) StrikeThrough(out *bytes.Buffer, text []byte) {
     t.NormalText(out, []byte("~~"))
-    out.Write(text)
+    t.NormalText(out, text)
     t.NormalText(out, []byte("~~"))
 }
 
@@ -610,17 +623,29 @@ func (t *Terminal) FootnoteRef(out *bytes.Buffer, ref []byte, id int) {
     log.Println(string(id) + ":" + string(ref))
 }
 
+// BUG: Should be able to use NormalText() but panics
 func (t *Terminal) Entity(out *bytes.Buffer, entity []byte) {
     s := html.UnescapeString( string(entity) )
     out.WriteString(s)
+    log.Println("entity:", s)
+    // t.NormalText(out, []byte(s))
 }
 
 func (t *Terminal) NormalText(out *bytes.Buffer, text []byte) {
-    t.wrapTextOut(out, text, "")
+    // caller is sometimes writing to temporary buffer
+    // instead of the output buffer
+    if out == t.outBuffer {
+        log.Println("wrap:", string(text))
+        t.wrapTextOut(out, text, "")
+    } else {
+        log.Println("no-wrap:", string(text))
+        out.Write(text)
+    }
 }
 
 // header and footer
 func (t *Terminal) DocumentHeader(out *bytes.Buffer) {
+    t.outBuffer = out
     // out.WriteString("GMAN(1) Version ")
     // out.WriteString(VERSION)
     // out.WriteString("\n")

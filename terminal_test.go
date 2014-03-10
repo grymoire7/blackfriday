@@ -124,7 +124,7 @@ func TestTerminalWrap(t *testing.T) {
     var tests = []string{
         "This is a wrap test. Wrap on.\n",
         //                  ^-- 20 at period
-        "\nThis is a wrap\ntest. Wrap on.\n",
+        "\nThis is a wrap test.\nWrap on.\n",
 
         "1 3 5 7 9 1 3 5 7 9 1 3 5 7 9 1\n",
         "\n1 3 5 7 9 1 3 5 7 9\n1 3 5 7 9 1\n",
@@ -133,23 +133,30 @@ func TestTerminalWrap(t *testing.T) {
         "\n1 3 5 7 9 \x1b[4m1x3\x1b[0m 5 7 9\n1 3 5 7 9 1\n",
 
         "This is a **wrap** test. Wrap on.\n",
-        "\nThis is a \x1b[1mwrap\x1b[0m\ntest. Wrap on.\n",
+        "\nThis is a \x1b[1mwrap\x1b[0m test.\nWrap on.\n",
 
         "This is a ***wrap*** test. Wrap on.\n",
-        "\nThis is a \x1b[7mwrap\x1b[0m\ntest. Wrap on.\n",
+        "\nThis is a \x1b[7mwrap\x1b[0m test.\nWrap on.\n",
 
         " This is a *wrapper* test. Wrap on.\n",
+        //                     ^-- 20 at 'e'
         "\nThis is a \x1b[4mwrapper\x1b[0m\ntest. Wrap on.\n",
 
         "123456789012345678901234567890\n",
         "\n12345678901234567890\n1234567890\n",
 
         "こんにちは。 This is a wrap test.\n",
-        "\nこんにちは。 This\nis a wrap test.\n",
+        //                  ^-- 20 at 's'
+        "\nこんにちは。 This is\na wrap test.\n",
 
         // BUG: Uncomment when this kind of wrapping works.
         // "こんにちは。 こんにちは。\n",
         // "\nこんにちは。 \nこんにちは。\n",
+
+        // BUG: Causes panic
+        // "&lt;&copy;&yen;&amp;&cent;&pound;&yen;&euro;&copy;&reg;&gt; &lt;&amp;&cent;&pound;&yen;&euro;&copy;&gt; &lt;@copy;&gt;\n",
+        // "\n<©¥&¢£¥€©®> <&¢£¥€©>\n<©>\n",
+
     }
 
     flags := TERM_FIXED_WIDTH_20
@@ -184,9 +191,10 @@ func TestTerminalLists(t *testing.T) {
         " - one\n - two\n",
         "\n\u2022 one\n\u2022 two\n",
 
-        "- This is a wrap test. Wrap on.\n- two\n",
-        "\n\u2022 This is a wrap\ntest. Wrap on.\n\u2022 two\n",
-
+        // BUG: List wrapping is turned off
+        // "- 3456 89 1 3456 8901. 4567 90.\n- 345\n",
+        //                  ^-- 20 is here
+        // "\n\u2022 3456 89 1 3456\n8901. 4567 90.\n\u2022 345\n",
     }
 
     flags := TERM_FIXED_WIDTH_20
