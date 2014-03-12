@@ -331,17 +331,14 @@ func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte, prefix string) er
     rpos := 0
     prefixLen := 0 // len(prefix)
 
-    if t.logging {
-        fmt.Println("|len(r) =", len(r), "rcells =", rcells, "text:", string(text))
-    }
+    log.Println("| len(r) =", len(r), "rcells =", rcells)
+    log.Println("| xpos =", t.xpos, "text:", string(text))
 
     for rpos < len(r) {
         remainingCells := t.termWidth - t.xpos - prefixLen
         toolong := true
 
-        if t.logging {
-            fmt.Println(":len(r) =", len(r), "rcells =", rcells)
-        }
+        log.Println(": len(r) =", len(r), "rcells =", rcells)
 
         // If we're at the beginning of a terminal line (t.xpos == 0)
         // then advance rpos past any whitespace.
@@ -368,18 +365,16 @@ func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte, prefix string) er
             rend++
         }
 
-        if t.logging {
-            fmt.Println("-------")
-            fmt.Println("remainingRunes:", remainingRunes)
-            fmt.Println("remaining runes:", string(r[rpos:]))
-            fmt.Println("rpos:", rpos, "rend:", rend)
-            fmt.Println("remainingCells:", remainingCells)
-        }
+        log.Println("-------")
+        log.Println("remainingRunes:", remainingRunes)
+        log.Println("remaining runes:", string(r[rpos:]))
+        log.Println("rpos:", rpos, "rend:", rend)
+        log.Println("remainingCells:", remainingCells)
 
         for i := rend; i >= rpos; i-- {
             if unicode.IsSpace(r[rpos+i]) {
                 out.WriteString(string(r[rpos : rpos+i]))
-                // fmt.Println(":::", string(r[rpos : rpos+i]), ":::")
+                // log.Println(":::", string(r[rpos : rpos+i]), ":::")
                 rpos += i // + 1
                 toolong = false
                 break
@@ -635,10 +630,10 @@ func (t *Terminal) NormalText(out *bytes.Buffer, text []byte) {
     // caller is sometimes writing to temporary buffer
     // instead of the output buffer
     if out == t.outBuffer {
-        log.Println("wrap:", string(text))
+        log.Println("nt:wrap:", string(text))
         t.wrapTextOut(out, text, "")
     } else {
-        log.Println("no-wrap:", string(text))
+        log.Println("nt:no-wrap:", string(text))
         out.Write(text)
     }
 }
