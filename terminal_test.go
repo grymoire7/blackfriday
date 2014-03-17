@@ -149,13 +149,19 @@ func TestTerminalWrap(t *testing.T) {
         //                  ^-- 20 at 's'
         "\nこんにちは。 This is\na wrap test.\n",
 
-        // BUG: Uncomment when this kind of wrapping works.
-        // "こんにちは。 こんにちは。\n",
-        // "\nこんにちは。 \nこんにちは。\n",
+        // Uncomment when this kind of wrapping works.
+        "こんにちは。 こんにちは。\n",
+        //                  ^-- 20
+        "\nこんにちは。\nこんにちは。\n",
 
-        // BUG: Causes panic
-        // "&lt;&copy;&yen;&amp;&cent;&pound;&yen;&euro;&copy;&reg;&gt; &lt;&amp;&cent;&pound;&yen;&euro;&copy;&gt; &lt;@copy;&gt;\n",
+        // BUG: Should break at space
+        "&lt;&copy;&yen;&amp;&cent;&pound;&yen;&euro;&copy;&reg;&gt; &lt;&amp;&cent;&pound;&yen;&euro;&copy;&gt; &lt;&copy;&gt;\n",
+        "\n<©¥&¢£¥€©®> <&¢£¥€©\n> <©>\n",
+        //                     ^-- 20 at ' '
         // "\n<©¥&¢£¥€©®> <&¢£¥€©>\n<©>\n",
+
+        "&lt;&copy;&yen;&amp;&cent;&pound;&yen;&euro;&copy;&reg;&gt; a\n",
+        "\n<©¥&¢£¥€©®> a\n",
 
     }
 
@@ -195,6 +201,10 @@ func TestTerminalLists(t *testing.T) {
         // "- 3456 89 1 3456 8901. 4567 90.\n- 345\n",
         //                  ^-- 20 is here
         // "\n\u2022 3456 89 1 3456\n8901. 4567 90.\n\u2022 345\n",
+
+        // BUG: List wrapping is turned off
+        // "- 3456 89 1 3456 8901. 4567 901 3456 89 1 3456 8901. 4567 90.\n",
+        // "\n\u2022 3456 89 1 3456\n8901. 4567 901 3456\n89 1 3456 8901.\n4567 90.\n",
     }
 
     flags := TERM_FIXED_WIDTH_20
@@ -236,7 +246,7 @@ func TestTerminalEntities(t *testing.T) {
         "\neuro symbol: €\n",
 
         "&nbsp;&lt;&gt;&amp;&cent;&pound;&yen;&euro;&copy;&reg;\n",
-        "\n\u00a0<>&¢£¥€©®\n",
+        "\n<>&¢£¥€©®\n",
 
     }
 

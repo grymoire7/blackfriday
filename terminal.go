@@ -325,25 +325,29 @@ func (t *Terminal) WrapTextTest(out *bytes.Buffer, text []byte, prefix string) e
 func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte, prefix string) error {
     // escapeSpecialChars(out, text) ???
     // Normalize whitespace
+    log.Println("| textin:" + string(text) + ":")
     s := t.whitespace.ReplaceAll(text, []byte(" "))
     r := bytes.Runes(s)
     rcells := t.runesCellLen(r[:])
     rpos := 0
     prefixLen := 0 // len(prefix)
 
-    log.Println("| len(r) =", len(r), "rcells =", rcells)
-    log.Println("| xpos =", t.xpos, "text:", string(text))
+    log.Println(":text:" + string(text) + ":")
+    log.Println(":r:" + string(r) + ":")
 
     for rpos < len(r) {
         remainingCells := t.termWidth - t.xpos - prefixLen
         toolong := true
 
-        log.Println(": len(r) =", len(r), "rcells =", rcells)
+        log.Println("_______")
+        log.Println("| len(r) =", len(r), "rpos =", rpos, "rcells =", rcells)
+        log.Println("| r[rpos] :" + string(r[rpos:]) + ":")
+        log.Println("| xpos =", t.xpos)
 
         // If we're at the beginning of a terminal line (t.xpos == 0)
         // then advance rpos past any whitespace.
         if t.xpos == 0 {
-            for unicode.IsSpace(r[rpos]) {
+            for (rpos < len(r)) && unicode.IsSpace(r[rpos]) {
                 rpos++
             }
         }
@@ -374,7 +378,6 @@ func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte, prefix string) er
         for i := rend; i >= rpos; i-- {
             if unicode.IsSpace(r[rpos+i]) {
                 out.WriteString(string(r[rpos : rpos+i]))
-                // log.Println(":::", string(r[rpos : rpos+i]), ":::")
                 rpos += i // + 1
                 toolong = false
                 break
@@ -494,7 +497,7 @@ func (t *Terminal) ListItem(out *bytes.Buffer, text []byte, flags int) {
     }
 
     out.WriteString(prefixed)
-    // t.NormalText(out, []byte(prefix + s))
+    // t.NormalText(out, []byte(prefixed))
 }
 
 // TODO: check out == t.outBuffer
@@ -621,19 +624,19 @@ func (t *Terminal) FootnoteRef(out *bytes.Buffer, ref []byte, id int) {
 // BUG: Should be able to use NormalText() but panics
 func (t *Terminal) Entity(out *bytes.Buffer, entity []byte) {
     s := html.UnescapeString( string(entity) )
-    out.WriteString(s)
-    log.Println("entity:", s)
-    // t.NormalText(out, []byte(s))
+    // out.WriteString(s)
+    log.Println("entity:" + s + ":")
+    t.NormalText(out, []byte(s))
 }
 
 func (t *Terminal) NormalText(out *bytes.Buffer, text []byte) {
     // caller is sometimes writing to temporary buffer
     // instead of the output buffer
     if out == t.outBuffer {
-        log.Println("nt:wrap:", string(text))
+        log.Println("nt:wrap:" + string(text) + ":")
         t.wrapTextOut(out, text, "")
     } else {
-        log.Println("nt:no-wrap:", string(text))
+        log.Println("nt:no-wrap:" + string(text) + ":")
         out.Write(text)
     }
 }
