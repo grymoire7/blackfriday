@@ -24,11 +24,11 @@ func createTerminal(flags int) *Terminal {
 func doTerminalTests(t *testing.T, tests []string, extensions int) {
     // catch and report panics
     var candidate string
-    defer func() {
-        if err := recover(); err != nil {
-            t.Errorf("\npanic while processing [%#v]\n", candidate)
-        }
-    }()
+    // defer func() {
+    //     if err := recover(); err != nil {
+    //         t.Errorf("\npanic while processing [%#v]\n", candidate)
+    //     }
+    // }()
 
     for i := 0; i+1 < len(tests); i += 2 {
         input := tests[i]
@@ -120,11 +120,30 @@ func TestTerminalUnderlineHeaders(t *testing.T) {
     doTerminalTests(t, tests, 0)
 }
 
+/*
+func TestTerminalNextBug(t *testing.T) {
+    var tests = []string{
+        "こんにちは。 こんにちは。 こんにちは。 こんにちは。\n",
+        //2345678901234567890
+        //                  ^-- 20
+        "\nこんにちは。\nこんにちは。\nこんにちは。\nこんにちは。\n",
+
+    }
+
+    flags := TERM_FIXED_WIDTH_20
+    doTerminalTests(t, tests, flags)
+}
+*/
+
 func TestTerminalWrap(t *testing.T) {
     var tests = []string{
         "This is a wrap test. Wrap on.\n",
         //                  ^-- 20 at period
         "\nThis is a wrap test.\nWrap on.\n",
+
+        "This is a wrap test. Wrap on. Wrap off. The wrapper.\n",
+        //                  ^-- 20 at period    ^-- 40 here
+        "\nThis is a wrap test.\nWrap on. Wrap off.\nThe wrapper.\n",
 
         "1 3 5 7 9 1 3 5 7 9 1 3 5 7 9 1\n",
         "\n1 3 5 7 9 1 3 5 7 9\n1 3 5 7 9 1\n",
@@ -149,7 +168,6 @@ func TestTerminalWrap(t *testing.T) {
         //                  ^-- 20 at 's'
         "\nこんにちは。 This is\na wrap test.\n",
 
-        // Uncomment when this kind of wrapping works.
         "こんにちは。 こんにちは。\n",
         //                  ^-- 20
         "\nこんにちは。\nこんにちは。\n",
@@ -157,7 +175,7 @@ func TestTerminalWrap(t *testing.T) {
         // BUG: Should break at space
         "&lt;&copy;&yen;&amp;&cent;&pound;&yen;&euro;&copy;&reg;&gt; &lt;&amp;&cent;&pound;&yen;&euro;&copy;&gt; &lt;&copy;&gt;\n",
         "\n<©¥&¢£¥€©®> <&¢£¥€©\n> <©>\n",
-        //                     ^-- 20 at ' '
+        //                    ^-- 20 at '>'
         // "\n<©¥&¢£¥€©®> <&¢£¥€©>\n<©>\n",
 
         "&lt;&copy;&yen;&amp;&cent;&pound;&yen;&euro;&copy;&reg;&gt; a\n",
@@ -197,14 +215,12 @@ func TestTerminalLists(t *testing.T) {
         " - one\n - two\n",
         "\n\u2022 one\n\u2022 two\n",
 
-        // BUG: List wrapping is turned off
-        // "- 3456 89 1 3456 8901. 4567 90.\n- 345\n",
+        "- 3456 89 1 3456 8901. 4567 90.\n- 345\n",
         //                  ^-- 20 is here
-        // "\n\u2022 3456 89 1 3456\n8901. 4567 90.\n\u2022 345\n",
+        "\n\u2022 3456 89 1 3456\n8901. 4567 90.\n\u2022 345\n",
 
-        // BUG: List wrapping is turned off
-        // "- 3456 89 1 3456 8901. 4567 901 3456 89 1 3456 8901. 4567 90.\n",
-        // "\n\u2022 3456 89 1 3456\n8901. 4567 901 3456\n89 1 3456 8901.\n4567 90.\n",
+        "- 3456 89 1 3456 8901. 4567 901 3456 89 1 3456 8901. 4567 90.\n",
+        "\n\u2022 3456 89 1 3456\n8901. 4567 901 3456\n89 1 3456 8901. 4567\n90.\n",
     }
 
     flags := TERM_FIXED_WIDTH_20

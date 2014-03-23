@@ -140,6 +140,7 @@ func NewTerminal(flags int) *Terminal {
     }
 
     logging := true
+    // if false {
     if flags&TERM_DEBUG_LOGGING == 0 {
         logging = false
         log.SetOutput(ioutil.Discard)
@@ -370,19 +371,22 @@ func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte, prefix string) er
         }
 
         log.Println("-------")
-        log.Println("remainingRunes:", remainingRunes)
-        log.Println("remaining runes:", string(r[rpos:]))
-        log.Println("rpos:", rpos, "rend:", rend)
-        log.Println("remainingCells:", remainingCells)
+        log.Println("| remaining runes #:", remainingRunes)
+        log.Println("| remaining runes:>" + string(r[rpos:]) + "<")
+        log.Println("| rpos:", rpos, "rend:", rend)
+        log.Println("| remainingCells:", remainingCells)
 
         for i := rend; i >= rpos; i-- {
-            if unicode.IsSpace(r[rpos+i]) {
-                out.WriteString(string(r[rpos : rpos+i]))
-                rpos += i // + 1
+            if unicode.IsSpace(r[i]) {
+                out.WriteString(string(r[rpos : i]))
+                log.Println("out:>" + string(r[rpos:i]) + "<")
+                rpos = i + 1
                 toolong = false
                 break
             }
         }
+
+        log.Println("_______")
 
         // If we have a run of text with no whitespace longer than the
         // remaining space availble and we're the start of a terminal
@@ -399,6 +403,8 @@ func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte, prefix string) er
             t.endLine(out)
             // out.WriteString(prefix)
         }
+
+        log.Println("end of loop: rpos =", rpos, "len(r) =", len(r))
     }
 
     return nil
@@ -483,7 +489,6 @@ func (t *Terminal) List(out *bytes.Buffer, text func() bool, flags int) {
     }
 }
 
-// BUG: Does not do line wrapping yet
 func (t *Terminal) ListItem(out *bytes.Buffer, text []byte, flags int) {
     t.endLine(out)
     var prefixed string
@@ -496,8 +501,7 @@ func (t *Terminal) ListItem(out *bytes.Buffer, text []byte, flags int) {
         prefixed = "\u2022 " + s
     }
 
-    out.WriteString(prefixed)
-    // t.NormalText(out, []byte(prefixed))
+    t.NormalText(out, []byte(prefixed))
 }
 
 // TODO: check out == t.outBuffer
@@ -621,10 +625,8 @@ func (t *Terminal) FootnoteRef(out *bytes.Buffer, ref []byte, id int) {
     log.Println(string(id) + ":" + string(ref))
 }
 
-// BUG: Should be able to use NormalText() but panics
 func (t *Terminal) Entity(out *bytes.Buffer, entity []byte) {
     s := html.UnescapeString( string(entity) )
-    // out.WriteString(s)
     log.Println("entity:" + s + ":")
     t.NormalText(out, []byte(s))
 }
