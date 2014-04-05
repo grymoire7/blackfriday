@@ -56,6 +56,7 @@ func TestTerminalRunes(t *testing.T) {
     doTerminalRuneTest(t, []rune("whatever this is"), 10, 10)
     doTerminalRuneTest(t, []rune("こんにちは。 こんにちは。"), 10, 5)
     doTerminalRuneTest(t, []rune("こんにちは。こんにちは。"), 10, 5)
+    doTerminalRuneTest(t, []rune("こんにちは。 こんにちは。 こんにちは。 こんにちは。"), 20, 10)
     // doTerminalRuneTest(t, []rune("whatever"), -10, 0)
 }
 
@@ -120,21 +121,6 @@ func TestTerminalUnderlineHeaders(t *testing.T) {
     doTerminalTests(t, tests, 0)
 }
 
-/*
-func TestTerminalNextBug(t *testing.T) {
-    var tests = []string{
-        "こんにちは。 こんにちは。 こんにちは。 こんにちは。\n",
-        //2345678901234567890
-        //                  ^-- 20
-        "\nこんにちは。\nこんにちは。\nこんにちは。\nこんにちは。\n",
-
-    }
-
-    flags := TERM_FIXED_WIDTH_20
-    doTerminalTests(t, tests, flags)
-}
-*/
-
 func TestTerminalWrap(t *testing.T) {
     var tests = []string{
         "This is a wrap test. Wrap on.\n",
@@ -180,6 +166,11 @@ func TestTerminalWrap(t *testing.T) {
 
         "&lt;&copy;&yen;&amp;&cent;&pound;&yen;&euro;&copy;&reg;&gt; a\n",
         "\n<©¥&¢£¥€©®> a\n",
+
+        "こんにちは。 んこにちは。 ちこんには。 はこんにち。\n",
+        //2345678901234567890
+        //                  ^-- 20
+        "\nこんにちは。\nんこにちは。\nちこんには。\nはこんにち。\n",
 
     }
 

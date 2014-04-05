@@ -296,7 +296,10 @@ func (t *Terminal) runesInWidth(ra []rune, width int) int {
     for _, r := range ra {
         cellCount += t.runeWidth(r)
         runeCount++
-        if cellCount == width {
+        if cellCount >= width {
+            if cellCount > width {
+                runeCount--
+            }
             break
         }
     }
@@ -326,24 +329,14 @@ func (t *Terminal) WrapTextTest(out *bytes.Buffer, text []byte, prefix string) e
 func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte, prefix string) error {
     // escapeSpecialChars(out, text) ???
     // Normalize whitespace
-    log.Println("| textin:" + string(text) + ":")
     s := t.whitespace.ReplaceAll(text, []byte(" "))
     r := bytes.Runes(s)
-    rcells := t.runesCellLen(r[:])
     rpos := 0
     prefixLen := 0 // len(prefix)
-
-    log.Println(":text:" + string(text) + ":")
-    log.Println(":r:" + string(r) + ":")
 
     for rpos < len(r) {
         remainingCells := t.termWidth - t.xpos - prefixLen
         toolong := true
-
-        log.Println("_______")
-        log.Println("| len(r) =", len(r), "rpos =", rpos, "rcells =", rcells)
-        log.Println("| r[rpos] :" + string(r[rpos:]) + ":")
-        log.Println("| xpos =", t.xpos)
 
         // If we're at the beginning of a terminal line (t.xpos == 0)
         // then advance rpos past any whitespace.
@@ -361,7 +354,7 @@ func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte, prefix string) er
         }
 
         // search backward for a space to wrap at
-        remainingRunes := t.runesInWidth(r[rpos:], remainingCells)
+        remainingRunes := t.runesInWidth([]rune(r[rpos:]), remainingCells)
         rend := rpos + remainingRunes - 1
 
         // we want to check one rune beyond the end if we
@@ -370,23 +363,14 @@ func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte, prefix string) er
             rend++
         }
 
-        log.Println("-------")
-        log.Println("| remaining runes #:", remainingRunes)
-        log.Println("| remaining runes:>" + string(r[rpos:]) + "<")
-        log.Println("| rpos:", rpos, "rend:", rend)
-        log.Println("| remainingCells:", remainingCells)
-
         for i := rend; i >= rpos; i-- {
             if unicode.IsSpace(r[i]) {
                 out.WriteString(string(r[rpos : i]))
-                log.Println("out:>" + string(r[rpos:i]) + "<")
                 rpos = i + 1
                 toolong = false
                 break
             }
         }
-
-        log.Println("_______")
 
         // If we have a run of text with no whitespace longer than the
         // remaining space availble and we're the start of a terminal
@@ -403,8 +387,6 @@ func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte, prefix string) er
             t.endLine(out)
             // out.WriteString(prefix)
         }
-
-        log.Println("end of loop: rpos =", rpos, "len(r) =", len(r))
     }
 
     return nil
