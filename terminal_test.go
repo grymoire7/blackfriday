@@ -24,11 +24,11 @@ func createTerminal(flags int) *Terminal {
 func doTerminalTests(t *testing.T, tests []string, extensions int) {
     // catch and report panics
     var candidate string
-    // defer func() {
-    //     if err := recover(); err != nil {
-    //         t.Errorf("\npanic while processing [%#v]\n", candidate)
-    //     }
-    // }()
+    defer func() {
+        if err := recover(); err != nil {
+            t.Errorf("\npanic while processing [%#v]\n", candidate)
+        }
+    }()
 
     for i := 0; i+1 < len(tests); i += 2 {
         input := tests[i]
@@ -44,7 +44,7 @@ func doTerminalTests(t *testing.T, tests []string, extensions int) {
 
 func doTerminalRuneTest(t *testing.T, r []rune, width int, expected int) {
     term := NewTerminal(0)
-    actual := term.RunesInWidth(r, width)
+    actual := term.runesInWidth(r, width)
     if actual != expected {
         t.Errorf("\nInput   [%#v]\nExpected[%#v]\nActual  [%#v]",
             string(r), expected, actual)
@@ -198,20 +198,17 @@ func TestTerminalRules(t *testing.T) {
 func TestTerminalLists(t *testing.T) {
     var tests = []string{
         "1. one\n3. two\n",
-        "\n1. one\n2. two\n",
+        "\n 1. one\n 2. two\n",
 
         "* one\n* two\n",
-        "\n\u2022 one\n\u2022 two\n",
+        "\n  \u2022 one\n  \u2022 two\n",
 
         " - one\n - two\n",
-        "\n\u2022 one\n\u2022 two\n",
+        "\n  \u2022 one\n  \u2022 two\n",
 
         "- 3456 89 1 3456 8901. 4567 90.\n- 345\n",
         //                  ^-- 20 is here
-        "\n\u2022 3456 89 1 3456\n8901. 4567 90.\n\u2022 345\n",
-
-        "- 3456 89 1 3456 8901. 4567 901 3456 89 1 3456 8901. 4567 90.\n",
-        "\n\u2022 3456 89 1 3456\n8901. 4567 901 3456\n89 1 3456 8901. 4567\n90.\n",
+        "\n  \u2022 3456 89 1 3456\n    8901. 4567 90.\n  \u2022 345\n",
     }
 
     flags := TERM_FIXED_WIDTH_20
@@ -253,7 +250,7 @@ func TestTerminalEntities(t *testing.T) {
         "\neuro symbol: €\n",
 
         "&nbsp;&lt;&gt;&amp;&cent;&pound;&yen;&euro;&copy;&reg;\n",
-        "\n<>&¢£¥€©®\n",
+        "\n\u00a0<>&¢£¥€©®\n",
 
     }
 

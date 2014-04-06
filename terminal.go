@@ -36,6 +36,7 @@ import (
 
 const (
     keyEscape = 27
+    spacesPerIndentLevel = 4
 )
 
 const (
@@ -116,6 +117,8 @@ type Terminal struct {
     whitespace *regexp.Regexp
     logging    bool
     outBuffer  *bytes.Buffer
+    indentLevel int  // # indent = indentLevel * spacesPerIndentLevel
+    firstLineIndent int  // # of spaces, -1 if not used
 }
 
 // TerminalRenderer creates and configures a Terminal object, which
@@ -140,7 +143,6 @@ func NewTerminal(flags int) *Terminal {
     }
 
     logging := true
-    // if false {
     if flags&TERM_DEBUG_LOGGING == 0 {
         logging = false
         log.SetOutput(ioutil.Discard)
@@ -156,6 +158,8 @@ func NewTerminal(flags int) *Terminal {
         listCount:  0,
         whitespace: regexp.MustCompile(`\s+`),
         logging:    logging,
+        indentLevel: 0,
+        firstLineIndent: -1,
     }
 }
 
@@ -314,37 +318,41 @@ func (t *Terminal) runesInWidth(ra []rune, width int) int {
     return runeCount
 }
 
-// Public wrapper for testing.
-func (t *Terminal) RunesInWidth(r []rune, width int) int {
-    return t.runesInWidth(r, width)
-}
-
-
-func (t *Terminal) WrapTextTest(out *bytes.Buffer, text []byte, prefix string) error {
-    return t.wrapTextOut(out, text, prefix)
-}
-
-
 // Wraps text with given line prefix and writes to out buffer.
-func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte, prefix string) error {
+func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte) error {
     // escapeSpecialChars(out, text) ???
     // Normalize whitespace
     s := t.whitespace.ReplaceAll(text, []byte(" "))
+    prefix := ""
+
+    // calculate indents
+    if t.indentLevel > 0 {
+        prefix = strings.Repeat(" ", t.indentLevel * spacesPerIndentLevel)
+    }
+    prefixLen := len(prefix)
+    if t.firstLineIndent < 0 {
+        if prefixLen > 0 {
+            // first line indented like the rest
+            s = []byte(prefix + strings.TrimFunc(string(s), unicode.IsSpace))
+        }
+    } else if t.firstLineIndent > 0 {
+        firstPrefix := strings.Repeat(" ", t.firstLineIndent)
+        s = []byte(firstPrefix + strings.TrimFunc(string(s), unicode.IsSpace))
+    }
+
     r := bytes.Runes(s)
     rpos := 0
-    prefixLen := 0 // len(prefix)
+    firstLine := true
 
     for rpos < len(r) {
+        if firstLine {
+            prefixLen = 0
+            firstLine = false
+        } else {
+            prefixLen = len(prefix)
+        }
         remainingCells := t.termWidth - t.xpos - prefixLen
         toolong := true
-
-        // If we're at the beginning of a terminal line (t.xpos == 0)
-        // then advance rpos past any whitespace.
-        if t.xpos == 0 {
-            for (rpos < len(r)) && unicode.IsSpace(r[rpos]) {
-                rpos++
-            }
-        }
 
         // if we don't need to wrap, then don't
         if t.runesCellLen(r[rpos:]) < remainingCells {
@@ -375,8 +383,6 @@ func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte, prefix string) er
         // If we have a run of text with no whitespace longer than the
         // remaining space availble and we're the start of a terminal
         // line (xpos == 0) then truncate the line.
-        // TODO: this does not yet account for runes that require
-        // more than one terminal cell
         if toolong && t.xpos == 0 {
             remainingRunes := t.runesInWidth(r[rpos:], t.termWidth - prefixLen)
             out.WriteString(string(r[rpos : rpos + remainingRunes]))
@@ -385,7 +391,11 @@ func (t *Terminal) wrapTextOut(out *bytes.Buffer, text []byte, prefix string) er
 
         if rpos < len(r) || t.xpos == t.termWidth {
             t.endLine(out)
-            // out.WriteString(prefix)
+            // advance rpos past any whitespace.
+            for (rpos < len(r)) && unicode.IsSpace(r[rpos]) {
+                rpos++
+            }
+            out.WriteString(prefix)
         }
     }
 
@@ -400,12 +410,14 @@ func (t *Terminal) endLine(out *bytes.Buffer) {
 // render code chunks using verbatim, or listings if we have a language
 // we currently ignore the language
 func (t *Terminal) BlockCode(out *bytes.Buffer, text []byte, lang string) {
-    // t.NormalText(out, text)
     out.Write(text)
 }
 
 func (t *Terminal) BlockQuote(out *bytes.Buffer, text []byte) {
+    t.indentLevel++
     t.NormalText(out, text)
+    t.indentLevel--
+    t.endLine(out);
 }
 
 func (t *Terminal) BlockHtml(out *bytes.Buffer, text []byte) {
@@ -460,10 +472,14 @@ func (t *Terminal) List(out *bytes.Buffer, text func() bool, flags int) {
         t.listCount = 0
     }
 
+    t.indentLevel++
     if !text() {
         out.Truncate(marker)
+        t.indentLevel--
         return
     }
+    t.indentLevel--
+
     if flags&LIST_TYPE_ORDERED != 0 {
         t.endLine(out)
     } else {
@@ -475,15 +491,19 @@ func (t *Terminal) ListItem(out *bytes.Buffer, text []byte, flags int) {
     t.endLine(out)
     var prefixed string
     s := strings.TrimSpace( string(text) )
+    oldFirstLineIndent := t.firstLineIndent
 
     if flags&LIST_TYPE_ORDERED != 0 {
         t.listCount++
         prefixed = fmt.Sprintf("%d. %s", t.listCount, s)
+        t.firstLineIndent = (t.indentLevel-1)*spacesPerIndentLevel + 1
     } else {
         prefixed = "\u2022 " + s
+        t.firstLineIndent = (t.indentLevel-1)*spacesPerIndentLevel + 2
     }
 
     t.NormalText(out, []byte(prefixed))
+    t.firstLineIndent = oldFirstLineIndent
 }
 
 // TODO: check out == t.outBuffer
@@ -618,7 +638,7 @@ func (t *Terminal) NormalText(out *bytes.Buffer, text []byte) {
     // instead of the output buffer
     if out == t.outBuffer {
         log.Println("nt:wrap:" + string(text) + ":")
-        t.wrapTextOut(out, text, "")
+        t.wrapTextOut(out, text)
     } else {
         log.Println("nt:no-wrap:" + string(text) + ":")
         out.Write(text)
