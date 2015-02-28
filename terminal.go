@@ -130,6 +130,10 @@ func TerminalRenderer(flags int) Renderer {
     return NewTerminal(flags)
 }
 
+func (t *Terminal) GetFlags() int {
+    return t.flags;
+}
+
 // Exposed for unit testing.  TerminalRenderer is used in production.
 func NewTerminal(flags int) *Terminal {
     width, err := getTerminalSize()
@@ -425,7 +429,7 @@ func (t *Terminal) BlockHtml(out *bytes.Buffer, text []byte) {
     log.Println(string(text))
 }
 
-func (t *Terminal) Header(out *bytes.Buffer, text func() bool, level int) {
+func (t *Terminal) Header(out *bytes.Buffer, text func() bool, level int, id string) {
     marker := out.Len()
     t.endLine(out) // TODO: should not need this
 
@@ -613,6 +617,13 @@ func (t *Terminal) RawHtmlTag(out *bytes.Buffer, tag []byte) {
     log.Println("!!! Raw HTML tags are unsupported.")
     log.Println(string(tag))
 }
+
+// TODO: this
+func (t *Terminal) TitleBlock(out *bytes.Buffer, text []byte) {
+    log.Println("!!! TitleBlock unexpected and unsupported.")
+    log.Println("Titleblock:" + string(text))
+}
+
 
 // Not widely supported in terminal
 func (t *Terminal) StrikeThrough(out *bytes.Buffer, text []byte) {

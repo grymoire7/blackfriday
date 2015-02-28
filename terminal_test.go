@@ -218,7 +218,7 @@ func TestTerminalLists(t *testing.T) {
 func TestTerminalFencedCodeBlock(t *testing.T) {
     var tests = []string{
         "``` go\nfunc() bool {\n\treturn true;\n}\n```\n",
-        "func() bool {\n    return true;\n}\n",
+        "func() bool {\n\treturn true;\n}\n",
 
     }
 
